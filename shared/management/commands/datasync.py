@@ -50,7 +50,7 @@ class Command(BaseCommand):
                 is_staff=True,
                 role=role,
                 category="CUSTOMER",
-                password=make_password(SUPERUSER_PASSWORD),
+                password=make_password("Super@12345"),
             )
             superuser.department.set([])
             superuser.groups.add(role)
@@ -74,7 +74,7 @@ class Command(BaseCommand):
                 is_staff=True,
                 role=role,
                 category="SYSTEM",
-                password=make_password("system"),
+                password=make_password("System@12345"),
             )
             system.department.set([])
             system.groups.add(role)

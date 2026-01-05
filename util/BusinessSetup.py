@@ -33,15 +33,17 @@ class BusinessSetup:
 
     def seed_default_sla(self):
         # Create Default SLA
-        default_sla = SLA.objects.create(
-            name="Default SLA",
-            description="Default SLA for all tickets",
-            operational_hours="business",
-            evaluation_method="ticket_creation",
-            is_active=True,
-            created_by=self.user,
-            business=self.business
-        )
+        sla_data = {
+            "name": "Default SLA",
+            "description": "Default SLA for all tickets",
+            "operational_hours": "business",
+            "evaluation_method": "ticket_creation",
+            "is_active": True,
+            "created_by": self.user,
+        }
+        if self.business:
+            sla_data['business'] = self.business
+        default_sla = SLA.objects.create(**sla_data)
 
         # Create SLA Targets
         priorities = ["urgent", "high", "medium", "low"]
@@ -53,15 +55,16 @@ class BusinessSetup:
         }
 
         for priority in priorities:
+            target_data = target_times[priority]
             SLATarget.objects.create(
                 sla=default_sla,
                 priority=priority,
-                first_response_time=target_times[priority]["first_response"],
-                first_response_unit=target_times[priority]["first_unit"],
+                first_response_time=target_data["first_response"],
+                first_response_unit=target_data["first_unit"],
                 next_response_time=None,  # No next response time for default
                 next_response_unit="hours",
-                resolution_time=target_times[priority]["resolution"],
-                resolution_unit=target_times[priority]["resolution_unit"],
+                resolution_time=target_data["resolution"],
+                resolution_unit=target_data["resolution_unit"],
                 operational_hours="business",
                 reminder_enabled=False,
                 escalation_enabled=False
@@ -69,25 +72,29 @@ class BusinessSetup:
 
         # Create Business Hours (Monday to Friday, 8 AM - 5 PM)
         for day_of_week in range(5):
-            BusinessHoursx.objects.create(
-                name=f"{BusinessHoursx.DAYS_OF_WEEK[day_of_week][1]}",
-                day_of_week=day_of_week,
-                start_time=time(8, 0),
-                end_time=time(17, 0),
-                is_working_day=True,
-                business=self.business
-            )
+            hours_data = {
+                "name": f"{BusinessHoursx.DAYS_OF_WEEK[day_of_week][1]}",
+                "day_of_week": day_of_week,
+                "start_time": time(8, 0),
+                "end_time": time(17, 0),
+                "is_working_day": True,
+            }
+            if self.business:
+                hours_data['business'] = self.business
+            BusinessHoursx.objects.create(**hours_data)
 
     def seed_default_email_templates(self):
-        category, created = EmailTemplateCategory.objects.get_or_create(
-            name="Default Email Templates",
-            business=self.business
-        )
+        category_kwargs = {'name': "Default Email Templates"}
+        if self.business:
+            category_kwargs['business'] = self.business
+        category, created = EmailTemplateCategory.objects.get_or_create(**category_kwargs)
 
         for template_name, template_data in EMAIL_TEMPLATES.items():
+            template_kwargs = {'name': template_name}
+            if self.business:
+                template_kwargs['business'] = self.business
             EmailTemplate.objects.update_or_create(
-                name=template_name,
-                business=self.business,
+                **template_kwargs,
                 defaults={
                     "description": template_data["description"],
                     "subject": template_data["subject"],
@@ -98,19 +105,28 @@ class BusinessSetup:
             )
 
     def seed_default_email_config(self):
-        category = EmailTemplateCategory.objects.get(name="Default Email Templates", business=self.business)
-        EmailConfig.objects.create(
-            default_template=category,
-            email_fetching=True,
-            business=self.business
-        )
+        category_kwargs = {'name': "Default Email Templates"}
+        if self.business:
+            category_kwargs['business'] = self.business
+        category = EmailTemplateCategory.objects.get(**category_kwargs)
+        config_data = {
+            'default_template': category,
+            'email_fetching': True,
+        }
+        if self.business:
+            config_data['business'] = self.business
+        EmailConfig.objects.create(**config_data)
 
     def seed_default_holidays(self):
         for holiday in HOLIDAYS:
+            holiday_kwargs = {
+                'name': holiday["name"],
+                'date': holiday["date"],
+            }
+            if self.business:
+                holiday_kwargs['business'] = self.business
             Holidays.objects.get_or_create(
-                name=holiday["name"],
-                date=holiday["date"],
-                business=self.business,
+                **holiday_kwargs,
                 defaults={'is_recurring': True}
             )
 
@@ -132,13 +148,16 @@ class BusinessSetup:
 
             # Add departments
             for dept_data in departments_data:
+                dept_kwargs = {'name': dept_data['name']}
+                if self.business:
+                    dept_kwargs['business'] = self.business
                 dept, created = Department.objects.get_or_create(
-                    name=dept_data['name'],
-                    business=self.business,
+                    **dept_kwargs,
                     defaults={'support_email': dept_data['support_email']}
                 )
                 if created:
-                    logger.info(f"Created department: {dept.name} for business: {self.business.name}")
+                    business_name = self.business.name if self.business else 'single tenant'
+                    logger.info(f"Created department: {dept.name} for business: {business_name}")
 
             # Default ticket categories
             ticket_categories_data = [
@@ -166,16 +185,19 @@ class BusinessSetup:
 
             # Add ticket categories
             for cat_data in ticket_categories_data:
+                cat_kwargs = {'name': cat_data['name']}
+                if self.business:
+                    cat_kwargs['business'] = self.business
                 cat, created = TicketCategories.objects.get_or_create(
-                    name=cat_data['name'],
-                    business=self.business,
+                    **cat_kwargs,
                     defaults={
                         'description': cat_data['description'],
                         'is_active': True,
                     }
                 )
                 if created:
-                    logger.info(f"Created ticket category: {cat.name} for business: {self.business.name}")
+                    business_name = self.business.name if self.business else 'single tenant'
+                    logger.info(f"Created ticket category: {cat.name} for business: {business_name}")
 
             # Default KB categories
             kb_categories_data = [
@@ -220,9 +242,11 @@ class BusinessSetup:
             # Add KB categories
             for i, cat_data in enumerate(kb_categories_data):
                 slug = slugify(cat_data['name'])
+                kb_cat_kwargs = {'name': cat_data['name']}
+                if self.business:
+                    kb_cat_kwargs['business'] = self.business
                 kb_cat, created = KBCategory.objects.get_or_create(
-                    name=cat_data['name'],
-                    business=self.business,
+                    **kb_cat_kwargs,
                     defaults={
                         'slug': slug,
                         'description': cat_data['description'],
@@ -231,10 +255,12 @@ class BusinessSetup:
                     }
                 )
                 if created:
-                    logger.info(f"Created KB category: {kb_cat.name} for business: {self.business.name}")
-                    
+                    business_name = self.business.name if self.business else 'single tenant'
+                    logger.info(f"Created KB category: {kb_cat.name} for business: {business_name}")
+
         except Exception as e:
-            logger.error(f"Error seeding default departments and categories for business {self.business.name}: {str(e)}", exc_info=True)
+            business_name = self.business.name if self.business else 'single tenant'
+            logger.error(f"Error seeding default departments and categories for business {business_name}: {str(e)}", exc_info=True)
 
     def create_welcome_ticket(self):
         # Create default department if it doesn't exist

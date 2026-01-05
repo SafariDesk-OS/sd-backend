@@ -38,7 +38,6 @@ def _create_categories(department):
             name=cat_data["name"],
             description=cat_data["description"],
             department=department,
-            business=department.business,
             created_by=department.created_by,
             is_active=True
         )

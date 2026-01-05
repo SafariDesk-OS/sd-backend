@@ -189,7 +189,7 @@ class TicketCategoryView(viewsets.ModelViewSet):
         department_id = request.data.get("department")
         
         # Check for duplicate name within department (or business if no department)
-        filter_kwargs = {'name': name, 'business': request.user.business}
+        filter_kwargs = {'name': name}
         if department_id:
             filter_kwargs['department_id'] = department_id
         
@@ -527,8 +527,7 @@ class TicketView(viewsets.ModelViewSet):
                 'attachments',
                 'activities__user'
             ).get(
-                id=id,
-                business=request.user.business
+                id=id
             )
         except Ticket.DoesNotExist:
             return Response({
@@ -639,8 +638,7 @@ class TicketView(viewsets.ModelViewSet):
                 'activities__user',
                 'email_messages',
             ).get(
-                ticket_id=ticket_id, 
-                business=request.user.business
+                ticket_id=ticket_id
             )
             
             # Apply department-based visibility restrictions for non-admin agents
@@ -818,9 +816,7 @@ class TicketView(viewsets.ModelViewSet):
                 queryset = queryset.filter(id__in=breached_tickets)
             elif view == 'reopened':
                 # Tickets that have been reopened (have at least one TicketReopen record)
-                reopened_ticket_ids = TicketReopen.objects.filter(
-                    ticket__business=request.user.business
-                ).values_list('ticket_id', flat=True).distinct()
+                reopened_ticket_ids = TicketReopen.objects.values_list('ticket_id', flat=True).distinct()
                 queryset = queryset.filter(id__in=reopened_ticket_ids, is_merged=False)
             elif view == 'archived':
                 # Archived tickets: is_archived=True AND is_deleted=False
@@ -926,9 +922,7 @@ class TicketView(viewsets.ModelViewSet):
         sla_breached_count = sum(1 for ticket in active_queryset if ticket.is_sla_breached)
 
         # Count tickets that have been reopened (tickets with at least one reopen record)
-        reopened_ticket_ids = TicketReopen.objects.filter(
-            ticket__business=request.user.business
-        ).values_list('ticket_id', flat=True).distinct()
+        reopened_ticket_ids = TicketReopen.objects.values_list('ticket_id', flat=True).distinct()
         reopened_count = active_queryset.filter(id__in=reopened_ticket_ids).count()
 
         counts = {
@@ -966,8 +960,8 @@ class TicketView(viewsets.ModelViewSet):
         user_departments = request.user.department.all()
 
         queryset = Ticket.objects.filter(
-            Q(department__in=user_departments, business=request.user.business) |
-            Q(watchers__watcher=request.user, business=request.user.business)
+            Q(department__in=user_departments) |
+            Q(watchers__watcher=request.user)
         ).filter(is_merged=False).order_by('-id').distinct()
 
         pagination = request.query_params.get('pagination', 'yes').lower()
@@ -985,8 +979,7 @@ class TicketView(viewsets.ModelViewSet):
     def my_customer_tickets(self, request, *args, **kwargs):
         """List all tickets for the authenticated user, with optional pagination and search"""
         queryset = Ticket.objects.filter(
-            created_by=request.user,
-            business=request.user.business
+            created_by=request.user
         ).filter(is_merged=False).order_by('-id')
 
         # Handle search
@@ -1015,28 +1008,24 @@ class TicketView(viewsets.ModelViewSet):
         
         # Get tickets assigned to the user
         assigned_tickets = Ticket.objects.filter(
-            assigned_to=request.user,
-            business=request.user.business
+            assigned_to=request.user
         ).exclude(status='closed').count()
         
         # Get resolved/closed tickets
         resolved_tickets = Ticket.objects.filter(
             Q(created_by=request.user) | Q(assigned_to=request.user),
-            business=request.user.business,
             status='closed'
         ).count()
         
         # Get tasks assigned to the user
         from tenant.models import Task
         assigned_tasks = Task.objects.filter(
-            assigned_to=request.user,
-            business=request.user.business
+            assigned_to=request.user
         ).exclude(task_status='completed').count()
         
         # Get completed tasks
         completed_tasks = Task.objects.filter(
             assigned_to=request.user,
-            business=request.user.business,
             task_status='completed'
         ).count()
         
@@ -1049,7 +1038,7 @@ class TicketView(viewsets.ModelViewSet):
 
     def my_customer_dashboard(self, request, *args, **kwargs):
         """List all tickets, optionally without pagination"""
-        queryset = Ticket.objects.filter(created_by=request.user, business=request.user.business, is_merged=False).order_by('-id')
+        queryset = Ticket.objects.filter(created_by=request.user, is_merged=False).order_by('-id')
 
         return Response({
             "all": queryset.count(),
@@ -1064,7 +1053,7 @@ class TicketView(viewsets.ModelViewSet):
             print(request.data)
             
             # Generate ticket ID using business context and config
-            ticket_id = Helper().generate_incident_code(business=request.user.business)
+            ticket_id = Helper().generate_incident_code()
 
             title = request.data.get('title')
             creator_name = request.data.get('creator_name')
@@ -1130,8 +1119,7 @@ class TicketView(viewsets.ModelViewSet):
             if creator_email:
                 try:
                     existing_user = Users.objects.filter(
-                        email=creator_email,
-                        business=request.user.business
+                        email=creator_email
                     ).first()
                     if existing_user:
                         created_by = existing_user
@@ -1145,12 +1133,11 @@ class TicketView(viewsets.ModelViewSet):
             if assignee_id not in [None, '', 'null']:
                 try:
                     assigned_agent = Users.objects.filter(
-                        id=int(assignee_id),
-                        business=request.user.business
+                        id=int(assignee_id)
                     ).first()
                     if not assigned_agent:
                         return Response({
-                            "message": f"Assignee with id {assignee_id} not found for this business"
+                            "message": f"Assignee with id {assignee_id} not found"
                         }, status=status.HTTP_404_NOT_FOUND)
                 except ValueError:
                     return Response({
@@ -1184,7 +1171,6 @@ class TicketView(viewsets.ModelViewSet):
                     tags=",".join(tag_list) if tag_list else ""
                 )
                 contact = link_or_create_contact(
-                    business=request.user.business,
                     name=creator_name,
                     email=creator_email,
                     phone=creator_phone,
@@ -1200,7 +1186,6 @@ class TicketView(viewsets.ModelViewSet):
 
                 # The SLA object itself will handle the due date calculation
                 applicable_sla = SLA.objects.filter(
-                    business=request.user.business,
                     is_active=True,
                     targets__priority=priority
                 ).first()
@@ -1210,7 +1195,7 @@ class TicketView(viewsets.ModelViewSet):
                     ticket.sla = applicable_sla
                     ticket.save()
                 else:
-                    logger.warning(f"No applicable SLA found for ticket {ticket_id} with priority {priority} in business {request.user.business.name}")
+                    logger.warning(f"No applicable SLA found for ticket {ticket_id} with priority {priority}")
 
                 # Calculate due dates using the ticket's own methods
                 sla_due_times = ticket.calculate_sla_due_times()
@@ -1247,7 +1232,7 @@ class TicketView(viewsets.ModelViewSet):
             # Optional assignee at creation (internal only) - mirror assign endpoint behavior
             if assignee_id:
                 try:
-                    agent = get_object_or_404(Users, id=assignee_id, business=request.user.business)
+                    agent = get_object_or_404(Users, id=assignee_id)
                 except Http404:
                     return Response({
                         "message": f"Assignee with id {assignee_id} not found"
@@ -1325,7 +1310,7 @@ class TicketView(viewsets.ModelViewSet):
                         unique_filename = f"{uuid.uuid4()}{file_extension}"
                         
                         # Create directory (scoped by business)
-                        properties_dir, url_base = _build_storage_paths(ticket.business, subfolder='files')
+                        properties_dir, url_base = _build_storage_paths(None, subfolder='files')
 
                         # Full file path
                         file_path = os.path.join(properties_dir, unique_filename)
@@ -1469,7 +1454,7 @@ class TicketView(viewsets.ModelViewSet):
 
         for user_id in user_ids:
             try:
-                user = Users.objects.filter(id=user_id, business=request.user.business).first()
+                user = Users.objects.filter(id=user_id).first()
 
                 # Check if user is already a watcher
                 if TicketWatchers.objects.filter(ticket=ticket, watcher=user).exists():
@@ -1532,7 +1517,7 @@ class TicketView(viewsets.ModelViewSet):
                 "message": "Tags must be a list of strings."
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        ticket = get_object_or_404(Ticket, id=tkId, business=request.user.business)
+        ticket = get_object_or_404(Ticket, id=tkId)
         if ticket.status == 'closed':
             return Response({"message": "Cannot add tags to a closed ticket."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1569,7 +1554,7 @@ class TicketView(viewsets.ModelViewSet):
 
     def get_tags(self, request, *args, **kwargs):
         tkId = kwargs.get("id")
-        ticket = get_object_or_404(Ticket, id=tkId, business=request.user.business)
+        ticket = get_object_or_404(Ticket, id=tkId)
 
         # Split comma-separated tags into list
         tags = [t.strip() for t in ticket.tags.split(",") if t.strip()]
@@ -1589,7 +1574,7 @@ class TicketView(viewsets.ModelViewSet):
                     "message": "Ticket ID is required"
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            ticket = get_object_or_404(Ticket, id=ticket_id, business=request.user.business)
+            ticket = get_object_or_404(Ticket, id=ticket_id)
             if ticket.status == 'closed':
                 return Response({"message": "Cannot assign a closed ticket."}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -1658,7 +1643,7 @@ class TicketView(viewsets.ModelViewSet):
                     "message": "Agent ID is required for assignment"
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
-            agent = get_object_or_404(Users, id=agent_id, business=request.user.business)
+            agent = get_object_or_404(Users, id=agent_id)
             ticket.assigned_to = agent
             ticket.updated_at = datetime.now()
             ticket.status = 'assigned'
@@ -1719,11 +1704,11 @@ class TicketView(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
 
         except Ticket.DoesNotExist:
-            logger.warning(f"Ticket with ID {ticket_id} not found for business {request.user.business}")
+            logger.warning(f"Ticket with ID {ticket_id} not found")
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
 
         except Users.DoesNotExist:
-            logger.warning(f"Agent with ID {agent_id} not found for business {request.user.business}")
+            logger.warning(f"Agent with ID {agent_id} not found")
             return Response({"message": "Agent not found"}, status=status.HTTP_404_NOT_FOUND)
 
         except Exception as e:
@@ -1742,7 +1727,7 @@ class TicketView(viewsets.ModelViewSet):
                     "message": "Ticket ID are required"
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            ticket = get_object_or_404(Ticket, id=ticket_id, business=request.user.business)
+            ticket = get_object_or_404(Ticket, id=ticket_id)
 
             ticket.assigned_to = request.user
             ticket.updated_at = datetime.now()
@@ -1791,7 +1776,7 @@ class TicketView(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
 
         except Ticket.DoesNotExist:
-            logger.warning(f"Ticket with ID {ticket_id} not found for business {request.user.business}")
+            logger.warning(f"Ticket with ID {ticket_id} not found")
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
 
         except Exception as e:
@@ -1813,7 +1798,7 @@ class TicketView(viewsets.ModelViewSet):
         
 
         try:
-            ticket = get_object_or_404(Ticket, id=ticket_id, business=request.user.business)
+            ticket = get_object_or_404(Ticket, id=ticket_id)
             if ticket.status == 'closed':
                 return Response({"message": "Cannot update status of a closed ticket. Please reopen it first."}, status=status.HTTP_400_BAD_REQUEST)
             new_status = request.data.get("status")
@@ -1919,7 +1904,7 @@ class TicketView(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
         
         except Ticket.DoesNotExist:
-            logger.warning(f"Ticket with ID {ticket_id} not found for business {request.user.business}")
+            logger.warning(f"Ticket with ID {ticket_id} not found")
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
 
     def update_department(self, request, *args, **kwargs):
@@ -1931,7 +1916,7 @@ class TicketView(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            ticket = get_object_or_404(Ticket, id=ticket_id, business=request.user.business)
+            ticket = get_object_or_404(Ticket, id=ticket_id)
             
             # Prevent modification of closed tickets
             if ticket.status == 'closed':
@@ -1951,7 +1936,7 @@ class TicketView(viewsets.ModelViewSet):
             # Verify the department exists and belongs to the business
             from tenant.models import Department
             try:
-                department = Department.objects.get(id=department_id, business=request.user.business)
+                department = Department.objects.get(id=department_id)
             except Department.DoesNotExist:
                 return Response({
                     "message": "Department not found"
@@ -1980,7 +1965,7 @@ class TicketView(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
 
         except Ticket.DoesNotExist:
-            logger.warning(f"Ticket with ID {ticket_id} not found for business {request.user.business}")
+            logger.warning(f"Ticket with ID {ticket_id} not found")
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
 
     def update_category(self, request, *args, **kwargs):
@@ -1992,7 +1977,7 @@ class TicketView(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            ticket = get_object_or_404(Ticket, id=ticket_id, business=request.user.business)
+            ticket = get_object_or_404(Ticket, id=ticket_id)
             
             # Prevent modification of closed tickets
             if ticket.status == 'closed':
@@ -2012,7 +1997,7 @@ class TicketView(viewsets.ModelViewSet):
             # Verify the category exists and belongs to the business context
             from tenant.models import TicketCategories
             try:
-                category = TicketCategories.objects.get(id=category_id, business=request.user.business)
+                category = TicketCategories.objects.get(id=category_id)
             except TicketCategories.DoesNotExist:
                 return Response({
                     "message": "Category not found"
@@ -2040,7 +2025,7 @@ class TicketView(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
 
         except Ticket.DoesNotExist:
-            logger.warning(f"Ticket with ID {ticket_id} not found for business {request.user.business}")
+            logger.warning(f"Ticket with ID {ticket_id} not found")
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
 
     def update_priority(self, request, *args, **kwargs):
@@ -2052,7 +2037,7 @@ class TicketView(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            ticket = get_object_or_404(Ticket, id=ticket_id, business=request.user.business)
+            ticket = get_object_or_404(Ticket, id=ticket_id)
             
             # Prevent modification of closed tickets
             if ticket.status == 'closed':
@@ -2087,7 +2072,7 @@ class TicketView(viewsets.ModelViewSet):
             return Response({"message": "Ticket priority updated successfully"}, status=status.HTTP_200_OK)
 
         except Ticket.DoesNotExist:
-            logger.warning(f"Ticket with ID {ticket_id} not found for business {request.user.business}")
+            logger.warning(f"Ticket with ID {ticket_id} not found")
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
 
     def update_source(self, request, *args, **kwargs):
@@ -2100,7 +2085,7 @@ class TicketView(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            ticket = get_object_or_404(Ticket, id=ticket_id, business=request.user.business)
+            ticket = get_object_or_404(Ticket, id=ticket_id)
             new_source = request.data.get('source')
             old_source = ticket.source
 
@@ -2134,7 +2119,7 @@ class TicketView(viewsets.ModelViewSet):
             return Response({"message": "Ticket source updated successfully"}, status=status.HTTP_200_OK)
 
         except Ticket.DoesNotExist:
-            logger.warning(f"Ticket with ID {ticket_id} not found for business {request.user.business}")
+            logger.warning(f"Ticket with ID {ticket_id} not found")
             return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
 
     @transaction.atomic
@@ -2145,7 +2130,7 @@ class TicketView(viewsets.ModelViewSet):
             return Response({"message": "Ticket ID is required"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            ticket = get_object_or_404(Ticket, id=ticket_id, business=request.user.business)
+            ticket = get_object_or_404(Ticket, id=ticket_id)
             note = request.data.get('note')
 
             if not note:
@@ -2411,7 +2396,7 @@ class TicketView(viewsets.ModelViewSet):
                         unique_filename = f"{uuid.uuid4()}{file_extension}"
 
                         # Create directory (scoped by business)
-                        properties_dir, url_base = _build_storage_paths(ticket.business, subfolder='files')
+                        properties_dir, url_base = _build_storage_paths(None, subfolder='files')
 
                         # Full file path
                         file_path = os.path.join(properties_dir, unique_filename)
@@ -2476,7 +2461,7 @@ class TicketView(viewsets.ModelViewSet):
             return Response({"message": "Ticket ID is required"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            ticket = get_object_or_404(Ticket, id=pk, business=request.user.business)
+            ticket = get_object_or_404(Ticket, id=pk)
             
             # Validate recipients
             to_emails = request.data.get('to', [])
@@ -2589,7 +2574,7 @@ class TicketView(viewsets.ModelViewSet):
             return Response({"message": "Reason is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            ticket = get_object_or_404(Ticket, id=ticket_id, business=request.user.business)
+            ticket = get_object_or_404(Ticket, id=ticket_id)
 
             if ticket.status != 'closed':
                 return Response({"message": "Only closed tickets can be reopened."}, status=status.HTTP_400_BAD_REQUEST)
@@ -2962,7 +2947,7 @@ class TicketView(viewsets.ModelViewSet):
         note = serializer.validated_data.get('note', '')
 
         try:
-            primary = Ticket.objects.select_for_update().get(id=primary_id, business=request.user.business)
+            primary = Ticket.objects.select_for_update().get(id=primary_id)
         except Ticket.DoesNotExist:
             return Response({"message": "Primary ticket not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -2973,7 +2958,7 @@ class TicketView(viewsets.ModelViewSet):
         # Fetch source tickets with lock
         sources = list(
             Ticket.objects.select_for_update()
-            .filter(id__in=source_ids, business=request.user.business)
+            .filter(id__in=source_ids)
         )
 
         if len(sources) != len(set(source_ids)):
@@ -3195,7 +3180,6 @@ class TicketView(viewsets.ModelViewSet):
         
         try:
             config, created = TicketConfig.objects.update_or_create(
-                business=request.user.business,
                 defaults={
                     "id_format": request.data.get("id_format", "ITK-{YYYY}-{####}"),
                     "updated_by": request.user,
