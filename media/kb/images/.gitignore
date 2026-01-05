@@ -1,0 +1,15 @@
+# Knowledge Base uploaded images
+# Keep this directory but ignore all uploaded content
+
+# Ignore all image files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.svg
+*.bmp
+*.tiff
+
+# Keep the directory structure
+!.gitignore
