@@ -64,7 +64,7 @@ class Mailer:
         except Exception as e:
             logger.error(f"[Mailer] Failed to load fallback SMTP config: {e}")
             return get_connection(), settings.DEFAULT_FROM_EMAIL
-    
+
     def send_templated_email(
         self,
         template,
@@ -223,16 +223,16 @@ class Mailer:
 
             # Create plain text content
             plain_text_content = f"""
-            Hi {context['name']},
-            
-            Your verification OTP is: {otp}
-            
-            This OTP will expire in a few minutes. Please use it to complete your verification.
-            
-            If you didn't request this OTP, please ignore this email.
-            
-            Best regards,
-            Your Team
+                Hi {context['name']},
+                
+                Your verification OTP is: {otp}
+                
+                This OTP will expire in a few minutes. Please use it to complete your verification.
+                
+                If you didn't request this OTP, please ignore this email.
+                
+                Best regards,
+                Your Team
             """
 
             # Render HTML template
