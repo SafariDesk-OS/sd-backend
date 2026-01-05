@@ -1,0 +1,25 @@
+# Media files should be ignored in git
+# Keep the directory structure but ignore uploaded content
+
+# Keep directory structure
+!.gitignore
+!*/
+!*/.gitignore
+
+# Ignore all uploaded files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.svg
+*.bmp
+*.tiff
+*.pdf
+*.doc
+*.docx
+*.zip
+
+# But allow example files if needed
+!example.*
+!sample.*

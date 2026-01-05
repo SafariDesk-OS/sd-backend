@@ -1,0 +1,141 @@
+services:
+  frontend:
+    container_name: safaridesk_front
+    build:
+      context: ../SafariDesk-Front
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:80"
+    volumes:
+      - safari:/mnt/safaridesk:ro  # Mount media volume read-only for serving uploads
+    depends_on:
+      web:
+        condition: service_started
+    restart: always
+
+  web:
+    container_name: safaridesk_api
+    build: .
+    command: >
+      sh -c "python manage.py collectstatic --noinput &&
+             python manage.py install_pgvector &&
+             python manage.py migrate --noinput &&
+             python manage.py safari &&
+             gunicorn RNSafarideskBack.wsgi:application --bind 0.0.0.0:8100 --workers 3"
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: RNSafarideskBack.settings.prod
+    volumes:
+      - .:/app
+      - gunicorn_logs:/var/log/gunicorn
+      - safari:/mnt
+    ports:
+      - "8100:8100"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: always
+
+  celery:
+    container_name: safaridesk_celery
+    build: .
+    command: celery -A RNSafarideskBack.celery worker --loglevel=info --concurrency=2
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: RNSafarideskBack.settings.prod
+    volumes:
+      - .:/app
+      - celery_logs:/var/log/celery
+      - safari:/mnt
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: always
+
+  celery-beat:
+    container_name: safaridesk_celery_beat
+    build: .
+    command: celery -A RNSafarideskBack.celery beat --loglevel=info
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: RNSafarideskBack.settings.prod
+    volumes:
+      - .:/app
+      - celery_logs:/var/log/celery
+      - safari:/mnt
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: always
+
+  channels:
+    container_name: safaridesk_channels
+    build: .
+    command: daphne -b 0.0.0.0 -p 8101 RNSafarideskBack.asgi:application
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: RNSafarideskBack.settings.prod
+    volumes:
+      - .:/app
+      - safari:/mnt
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8101:8101"
+    restart: always
+
+  redis:
+    container_name: safaridesk_redis
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    restart: always
+
+  adminer:
+    image: adminer
+    ports:
+      - "8200:8080"
+    volumes:
+      - ./adminer.css:/var/www/html/adminer.css
+    restart: always
+  db:
+    container_name: safaridesk_db
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${DB_NAME:-safaridesk}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgresdata:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+
+volumes:
+  postgresdata:
+  redisdata:
+  gunicorn_logs:
+  celery_logs:
+  safari:
