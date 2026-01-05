@@ -40,15 +40,14 @@ class Helper:
         """
         if not format_template:
             # Try to get from config
-            if business:
-                try:
-                    from tenant.models.ConfigModel import TicketConfig
-                    config = TicketConfig.objects.filter().first()
-                    if config:
-                        format_template = config.id_format
-                except:
-                    pass
-            
+            try:
+                from tenant.models.ConfigModel import TicketConfig
+                config = TicketConfig.objects.first()
+                if config:
+                    format_template = config.id_format
+            except:
+                pass
+
             # Fallback to default format
             if not format_template:
                 format_template = "ITK-{YYYY}-{####}"
@@ -61,15 +60,14 @@ class Helper:
         """
         if not format_template:
             # Try to get from config
-            if business:
-                try:
-                    from tenant.models.ConfigModel import TaskConfig
-                    config = TaskConfig.objects.filter().first()
-                    if config:
-                        format_template = config.id_format
-                except:
-                    pass
-            
+            try:
+                from tenant.models.ConfigModel import TaskConfig
+                config = TaskConfig.objects.first()
+                if config:
+                    format_template = config.id_format
+            except:
+                pass
+
             # Fallback to default format
             if not format_template:
                 format_template = "TSK-{YYYY}-{####}"
@@ -110,16 +108,12 @@ class Helper:
     
     def _get_next_sequence(self, entity_type, year):
         """
-        Get the next sequence number for a business/entity/year combination.
+        Get the next sequence number for an entity/year combination.
         """
-        if not business:
-            # Fallback to random if no business context
-            return random.randint(1, 9999)
-        
         try:
             if entity_type == 'ticket':
                 from tenant.models.TicketModel import Ticket
-                # Count tickets created this year for this business
+                # Count tickets created this year
                 count = Ticket.objects.filter(
                     created_at__year=year
                 ).count()
