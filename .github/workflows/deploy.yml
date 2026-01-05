@@ -1,117 +1,117 @@
-name: Build and Deploy Backend
-
-on:
-  push:
-    branches: [dev, feature/helpcenter]
-    # main branch will be enabled once testing is complete
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate required secrets
-        run: |
-          if [[ -z "${{ secrets.REGISTRY_URL }}" ]]; then
-            echo "REGISTRY_URL secret is missing"
-            exit 1
-          fi
-          if [[ -z "${{ secrets.REGISTRY_USERNAME }}" ]]; then
-            echo "REGISTRY_USERNAME secret is missing"
-            exit 1
-          fi
-          if [[ -z "${{ secrets.REGISTRY_PASSWORD }}" ]]; then
-            echo "REGISTRY_PASSWORD secret is missing"
-            exit 1
-          fi
-          if [[ -z "${{ secrets.WEBHOOK_URL }}" ]]; then
-            echo "WEBHOOK_URL secret is missing"
-            exit 1
-          fi
-          if [[ -z "${{ secrets.WEBHOOK_SECRET }}" ]]; then
-            echo "WEBHOOK_SECRET secret is missing"
-            exit 1
-          fi
-          echo "All required secrets are present"
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Determine build type and Dockerfile
-        id: build_config
-        run: |
-          BRANCH_NAME="${{ github.ref_name }}"
-          SAFE_BRANCH=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | tr '/' '-')
-          echo "safe_branch=$SAFE_BRANCH" >> $GITHUB_OUTPUT
-          if [[ "$BRANCH_NAME" == "main" ]]; then
-            echo "dockerfile=Dockerfile" >> $GITHUB_OUTPUT
-            echo "build_type=prod" >> $GITHUB_OUTPUT
-            echo "latest_tag=prod-latest" >> $GITHUB_OUTPUT
-            echo "Using production Dockerfile for main branch"
-          else
-            echo "dockerfile=Dockerfile.dev" >> $GITHUB_OUTPUT
-            echo "build_type=dev" >> $GITHUB_OUTPUT
-            echo "latest_tag=dev-latest" >> $GITHUB_OUTPUT
-            echo "Using dev Dockerfile for $BRANCH_NAME branch"
-          fi
-
-      - name: Generate version from commit
-        id: version
-        run: |
-          # Use commit count + branch name for unique versioning
-          COMMIT_COUNT=$(git rev-list --count HEAD)
-          BRANCH_NAME="${{ github.ref_name }}"
-          SAFE_BRANCH=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | tr '/' '-')
-          VERSION="1.0.${COMMIT_COUNT}"
-          FULL_TAG="${SAFE_BRANCH}-v${VERSION}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "full_tag=$FULL_TAG" >> $GITHUB_OUTPUT
-          echo "Generated version: $VERSION, tag: $FULL_TAG"
-
-      - name: Update version file (for reference)
-        run: |
-          echo "${{ steps.version.outputs.version }}" > version.txt
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add version.txt
-          git commit -m "Update version to ${{ steps.version.outputs.version }}" || echo "No changes to commit"
-          git push || echo "Push failed, continuing..."
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
-      - name: Allow insecure Docker registry
-        run: |
-          echo '{ "insecure-registries": ["${{ secrets.REGISTRY_URL }}"] }' | sudo tee /etc/docker/daemon.json
-          sudo systemctl restart docker
-              
-      - name: Login to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ${{ steps.build_config.outputs.dockerfile }}
-          push: true
-          tags: |
-            ${{ secrets.REGISTRY_URL }}/safaridesk-backend:${{ steps.version.outputs.full_tag }}
-            ${{ secrets.REGISTRY_URL }}/safaridesk-backend:${{ steps.build_config.outputs.latest_tag }}
-
-      - name: Trigger deployment webhook
-        run: |
-          curl -X POST ${{ secrets.WEBHOOK_URL }} \
-            -H "Content-Type: application/json" \
-            -H "X-Webhook-Secret: ${{ secrets.WEBHOOK_SECRET }}" \
-            -d '{
-              "service": "backend",
-              "version": "${{ steps.version.outputs.full_tag }}",
-              "image": "${{ secrets.REGISTRY_URL }}/safaridesk-backend:${{ steps.build_config.outputs.latest_tag }}",
-              "branch": "${{ github.ref_name }}",
-              "build_type": "${{ steps.build_config.outputs.build_type }}"
-            }'
+#name: Build and Deploy Backend
+#
+#on:
+#  push:
+#    branches: [dev, feature/helpcenter]
+#    # main branch will be enabled once testing is complete
+#
+#jobs:
+#  build-and-deploy:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Validate required secrets
+#        run: |
+#          if [[ -z "${{ secrets.REGISTRY_URL }}" ]]; then
+#            echo "REGISTRY_URL secret is missing"
+#            exit 1
+#          fi
+#          if [[ -z "${{ secrets.REGISTRY_USERNAME }}" ]]; then
+#            echo "REGISTRY_USERNAME secret is missing"
+#            exit 1
+#          fi
+#          if [[ -z "${{ secrets.REGISTRY_PASSWORD }}" ]]; then
+#            echo "REGISTRY_PASSWORD secret is missing"
+#            exit 1
+#          fi
+#          if [[ -z "${{ secrets.WEBHOOK_URL }}" ]]; then
+#            echo "WEBHOOK_URL secret is missing"
+#            exit 1
+#          fi
+#          if [[ -z "${{ secrets.WEBHOOK_SECRET }}" ]]; then
+#            echo "WEBHOOK_SECRET secret is missing"
+#            exit 1
+#          fi
+#          echo "All required secrets are present"
+#
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#        with:
+#          token: ${{ secrets.GITHUB_TOKEN }}
+#
+#      - name: Determine build type and Dockerfile
+#        id: build_config
+#        run: |
+#          BRANCH_NAME="${{ github.ref_name }}"
+#          SAFE_BRANCH=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | tr '/' '-')
+#          echo "safe_branch=$SAFE_BRANCH" >> $GITHUB_OUTPUT
+#          if [[ "$BRANCH_NAME" == "main" ]]; then
+#            echo "dockerfile=Dockerfile" >> $GITHUB_OUTPUT
+#            echo "build_type=prod" >> $GITHUB_OUTPUT
+#            echo "latest_tag=prod-latest" >> $GITHUB_OUTPUT
+#            echo "Using production Dockerfile for main branch"
+#          else
+#            echo "dockerfile=Dockerfile.dev" >> $GITHUB_OUTPUT
+#            echo "build_type=dev" >> $GITHUB_OUTPUT
+#            echo "latest_tag=dev-latest" >> $GITHUB_OUTPUT
+#            echo "Using dev Dockerfile for $BRANCH_NAME branch"
+#          fi
+#
+#      - name: Generate version from commit
+#        id: version
+#        run: |
+#          # Use commit count + branch name for unique versioning
+#          COMMIT_COUNT=$(git rev-list --count HEAD)
+#          BRANCH_NAME="${{ github.ref_name }}"
+#          SAFE_BRANCH=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | tr '/' '-')
+#          VERSION="1.0.${COMMIT_COUNT}"
+#          FULL_TAG="${SAFE_BRANCH}-v${VERSION}"
+#          echo "version=$VERSION" >> $GITHUB_OUTPUT
+#          echo "full_tag=$FULL_TAG" >> $GITHUB_OUTPUT
+#          echo "Generated version: $VERSION, tag: $FULL_TAG"
+#
+#      - name: Update version file (for reference)
+#        run: |
+#          echo "${{ steps.version.outputs.version }}" > version.txt
+#          git config user.name "GitHub Actions"
+#          git config user.email "actions@github.com"
+#          git add version.txt
+#          git commit -m "Update version to ${{ steps.version.outputs.version }}" || echo "No changes to commit"
+#          git push || echo "Push failed, continuing..."
+#
+#      - name: Set up Docker Buildx
+#        uses: docker/setup-buildx-action@v3
+#
+#      - name: Allow insecure Docker registry
+#        run: |
+#          echo '{ "insecure-registries": ["${{ secrets.REGISTRY_URL }}"] }' | sudo tee /etc/docker/daemon.json
+#          sudo systemctl restart docker
+#
+#      - name: Login to Container Registry
+#        uses: docker/login-action@v3
+#        with:
+#          registry: ${{ secrets.REGISTRY_URL }}
+#          username: ${{ secrets.REGISTRY_USERNAME }}
+#          password: ${{ secrets.REGISTRY_PASSWORD }}
+#
+#      - name: Build and push Docker image
+#        uses: docker/build-push-action@v5
+#        with:
+#          context: .
+#          file: ${{ steps.build_config.outputs.dockerfile }}
+#          push: true
+#          tags: |
+#            ${{ secrets.REGISTRY_URL }}/safaridesk-backend:${{ steps.version.outputs.full_tag }}
+#            ${{ secrets.REGISTRY_URL }}/safaridesk-backend:${{ steps.build_config.outputs.latest_tag }}
+#
+#      - name: Trigger deployment webhook
+#        run: |
+#          curl -X POST ${{ secrets.WEBHOOK_URL }} \
+#            -H "Content-Type: application/json" \
+#            -H "X-Webhook-Secret: ${{ secrets.WEBHOOK_SECRET }}" \
+#            -d '{
+#              "service": "backend",
+#              "version": "${{ steps.version.outputs.full_tag }}",
+#              "image": "${{ secrets.REGISTRY_URL }}/safaridesk-backend:${{ steps.build_config.outputs.latest_tag }}",
+#              "branch": "${{ github.ref_name }}",
+#              "build_type": "${{ steps.build_config.outputs.build_type }}"
+#            }'
