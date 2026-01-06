@@ -14,6 +14,7 @@ python3 manage.py migrate --noinput
 # Run custom setup command
 echo "Running custom setup..."
 python3 manage.py safari
+python3 manage.py setup
 
 # Create log directories if they don't exist
 echo "Ensuring log directories exist..."

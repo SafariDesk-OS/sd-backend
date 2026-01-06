@@ -34,7 +34,7 @@ COPY supervisor.conf /etc/supervisor/conf.d/
 
 # Set environment variables
 ENV APP_ENV=prod
-EXPOSE 8100
+EXPOSE 7880
 
 
 # Copy and set permissions for start.sh
