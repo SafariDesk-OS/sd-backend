@@ -2,7 +2,7 @@ services:
   frontend:
     container_name: safaridesk_front
     build:
-      context: ../SafariDesk-Front
+      context: ../sd-frontend
       dockerfile: Dockerfile.dev
     ports:
       - "8000:80"
