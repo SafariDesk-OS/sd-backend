@@ -32,3 +32,4 @@ google-auth-oauthlib>=1.2.0
 msal>=1.29.0
 dnspython>=2.6.0
 beautifulsoup4
+mysqlclient

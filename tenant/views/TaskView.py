@@ -85,8 +85,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         # Department is required - validate it exists
         try:
             department = Department.objects.get(
-                id=department_id,
-                business=request.user.business
+                id=department_id
             )
         except Department.DoesNotExist:
             return Response({
@@ -98,8 +97,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         if assigned_to_id not in [None, '']:
             try:
                 agent = Users.objects.get(
-                    id=assigned_to_id,
-                    business=request.user.business
+                    id=assigned_to_id
                 )
             except Users.DoesNotExist:
                 return Response({

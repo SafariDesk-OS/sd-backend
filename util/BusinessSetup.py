@@ -3,7 +3,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from tenant.models import Department, Ticket, TicketCategories, Task
 from tenant.models.SettingModel import EmailTemplateCategory, EmailTemplate, EmailConfig
-from tenant.models.SlaXModel import SLA, Holidays, SLATarget, BusinessHoursx
+from tenant.models.SlaXModel import SLA, Holidays, SLATarget, BusinessHoursx, SLAConfiguration
 from tenant.models.KnowledgeBase import KBCategory
 from users.models import Users
 from util.email.templates import EMAIL_TEMPLATES
@@ -23,6 +23,7 @@ class BusinessSetup:
         if not self.user:
             return  # Do not run setup if there is no owner
         
+        self.seed_sla_configuration()
         self.seed_default_sla()
         self.seed_default_email_templates()
         self.seed_default_email_config()
@@ -30,6 +31,23 @@ class BusinessSetup:
         self.seed_default_departments_and_categories()
         # self.create_welcome_ticket()
 
+
+    def seed_sla_configuration(self):
+        """
+        Create SLA Configuration with SLA and Holidays disabled by default
+        """
+        config_data = {
+            'allow_sla': False,
+            'allow_holidays': False,
+        }
+        if self.business:
+            config_data['business'] = self.business
+        
+        # Create or update configuration (using pk=1 as singleton pattern)
+        SLAConfiguration.objects.update_or_create(
+            pk=1,
+            defaults=config_data
+        )
 
     def seed_default_sla(self):
         # Create Default SLA

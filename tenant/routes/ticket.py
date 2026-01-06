@@ -33,6 +33,7 @@ urlpatterns = [
     path('update/category/<int:id>', TicketView.as_view({'put': 'update_category'}), name='ticket_update_category'),
     path('update/priority/<int:id>', TicketView.as_view({'put': 'update_priority'}), name='ticket_update_priority'),
     path('update/source/<int:id>', TicketView.as_view({'put': 'update_source'}), name='ticket_update_source'),
+    path('update/due-date/<int:id>', TicketView.as_view({'put': 'update_due_date'}), name='ticket_update_due_date'),
     path('comment/add/<int:id>', TicketView.as_view({'post': 'add_comment'}), name='ticket_add_comment'),
     
     # Bulk actions

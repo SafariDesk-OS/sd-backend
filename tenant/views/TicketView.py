@@ -23,7 +23,7 @@ from django.db.models import Q, Count
 from RNSafarideskBack import settings
 from RNSafarideskBack.settings import FILE_BASE_URL, FILE_URL
 from tenant.models import Ticket, TicketCategories, Department, TicketAttachment, Task, TicketWatchers
-from tenant.models.SlaXModel import SLA, SLATarget # Import SLA and SLATarget from SlaXModel
+from tenant.models.SlaXModel import SLA, SLATarget, SLAConfiguration # Import SLA and SLATarget from SlaXModel
 from tenant.models.TicketModel import TicketComment, TicketReplayAttachment, CommentLike, CommentReply, \
     CommentReplyLike, TicketReopen
 from tenant.models.ConfigModel import TicketConfig
@@ -584,6 +584,14 @@ class TicketView(viewsets.ModelViewSet):
         Get comprehensive SLA details for a specific ticket.
         """
         try:
+            # Check if SLA is allowed
+            sla_config = SLAConfiguration.objects.filter(pk=1).first()
+            if not sla_config or not sla_config.allow_sla:
+                return Response({
+                    "message": "SLA tracking is currently disabled",
+                    "sla_enabled": False
+                }, status=status.HTTP_200_OK)
+            
             ticket = Ticket.objects.for_business().get(id=kwargs.get("id"))
             sla_analysis_data = ticket.sla_analysis()
             sla_status_data = ticket.get_sla_status()
@@ -1184,30 +1192,51 @@ class TicketView(viewsets.ModelViewSet):
                     ticket.save(update_fields=['status'])
 
 
-                # The SLA object itself will handle the due date calculation
-                applicable_sla = SLA.objects.filter(
-                    is_active=True,
-                    targets__priority=priority
-                ).first()
+                # Check if SLA is allowed before assigning SLA
+                sla_config = SLAConfiguration.objects.filter(pk=1).first()
+                sla_enabled = sla_config and sla_config.allow_sla
+                
+                if sla_enabled:
+                    # The SLA object itself will handle the due date calculation
+                    applicable_sla = SLA.objects.filter(
+                        is_active=True,
+                        targets__priority=priority
+                    ).first()
 
 
-                if applicable_sla:
-                    ticket.sla = applicable_sla
-                    ticket.save()
+                    if applicable_sla:
+                        ticket.sla = applicable_sla
+                        ticket.save()
+                    else:
+                        logger.warning(f"No applicable SLA found for ticket {ticket_id} with priority {priority}")
+
+                    # Calculate due dates using the ticket's own methods
+                    sla_due_times = ticket.calculate_sla_due_times()
+                    due_date = None
+                    if sla_due_times and sla_due_times['resolution_due']:
+                        due_date = sla_due_times['resolution_due']
+                        ticket.due_date = due_date
+                        ticket.save()
+                        logger.info(f"Ticket {ticket_id} resolution due date set to {due_date} based on SLA.")
+                    else:
+                        logger.warning(f"Could not calculate SLA due date for ticket {ticket_id}. Falling back to default.")
+                        # Fallback to old method if no SLA policy exists or calculation fails
+                        try:
+                            priority_dict = dict(PRIORITY_DURATION)
+                            priority_hours_str = priority_dict.get(priority)
+                            if priority_hours_str:
+                                priority_hours = int(priority_hours_str)
+                                due_date = datetime.now() + timedelta(hours=priority_hours)
+                                ticket.due_date = due_date
+                                ticket.save()
+                            else:
+                                due_date = None
+                        except Exception as e:
+                            logger.error(f"Error with fallback due date calculation: {str(e)}")
+                            due_date = None
                 else:
-                    logger.warning(f"No applicable SLA found for ticket {ticket_id} with priority {priority}")
-
-                # Calculate due dates using the ticket's own methods
-                sla_due_times = ticket.calculate_sla_due_times()
-                due_date = None
-                if sla_due_times and sla_due_times['resolution_due']:
-                    due_date = sla_due_times['resolution_due']
-                    ticket.due_date = due_date
-                    ticket.save()
-                    logger.info(f"Ticket {ticket_id} resolution due date set to {due_date} based on SLA.")
-                else:
-                    logger.warning(f"Could not calculate SLA due date for ticket {ticket_id}. Falling back to default.")
-                    # Fallback to old method if no SLA policy exists or calculation fails
+                    # SLA is disabled, use fallback method for due date
+                    logger.info(f"SLA is disabled, using fallback due date calculation for ticket {ticket_id}")
                     try:
                         priority_dict = dict(PRIORITY_DURATION)
                         priority_hours_str = priority_dict.get(priority)
@@ -2117,6 +2146,91 @@ class TicketView(viewsets.ModelViewSet):
             )
 
             return Response({"message": "Ticket source updated successfully"}, status=status.HTTP_200_OK)
+
+        except Ticket.DoesNotExist:
+            logger.warning(f"Ticket with ID {ticket_id} not found")
+            return Response({"message": "Ticket not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    def update_due_date(self, request, *args, **kwargs):
+        """Update the due date of a ticket."""
+        ticket_id = kwargs.get('id')
+
+        if not ticket_id:
+            return Response({
+                "message": "Ticket ID is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            ticket = get_object_or_404(Ticket, id=ticket_id)
+            
+            # Prevent modification of closed tickets
+            if ticket.status == 'closed':
+                return Response(
+                    {"message": "Cannot modify a closed ticket. Please reopen it first."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            new_due_date = request.data.get('due_date')
+            old_due_date = ticket.due_date
+
+            if not new_due_date:
+                return Response({"message": "Due date is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                # Parse the due date string to datetime
+                # Expected format: ISO 8601 (e.g., "2024-12-31T23:59:59Z" or "2024-12-31")
+                if isinstance(new_due_date, str):
+                    # Handle both date and datetime strings
+                    if 'T' in new_due_date:
+                        parsed_date = datetime.fromisoformat(new_due_date.replace('Z', '+00:00'))
+                    else:
+                        parsed_date = datetime.strptime(new_due_date, '%Y-%m-%d')
+                        # Set to end of day if only date provided
+                        parsed_date = parsed_date.replace(hour=23, minute=59, second=59)
+                    
+                    # Make timezone aware if it's not already
+                    if timezone.is_naive(parsed_date):
+                        parsed_date = timezone.make_aware(parsed_date)
+                    
+                    new_due_date = parsed_date
+                else:
+                    new_due_date = timezone.make_aware(new_due_date) if timezone.is_naive(new_due_date) else new_due_date
+
+            except (ValueError, TypeError) as e:
+                return Response({
+                    "message": f"Invalid due date format. Expected ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). Error: {str(e)}"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Validate that due date is in the future
+            if new_due_date <= timezone.now():
+                return Response({
+                    "message": "Due date must be in the future"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Update the ticket due date
+            ticket.due_date = new_due_date
+            ticket.updated_at = datetime.now()
+            ticket.updated_by = request.user
+            ticket.save()
+
+            # Create TicketActivity for due date change
+            from tenant.models import TicketActivity
+            old_due_date_str = old_due_date.strftime('%Y-%m-%d %H:%M:%S') if old_due_date else 'None'
+            new_due_date_str = new_due_date.strftime('%Y-%m-%d %H:%M:%S')
+            
+            TicketActivity.objects.create(
+                ticket=ticket,
+                user=request.user,
+                activity_type='due_date_changed',
+                description=f"Ticket due date changed from {old_due_date_str} to {new_due_date_str}",
+                old_value=old_due_date_str,
+                new_value=new_due_date_str
+            )
+
+            return Response({
+                "message": "Ticket due date updated successfully",
+                "due_date": new_due_date.isoformat()
+            }, status=status.HTTP_200_OK)
 
         except Ticket.DoesNotExist:
             logger.warning(f"Ticket with ID {ticket_id} not found")

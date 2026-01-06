@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
+    default-libmysqlclient-dev \
     libglib2.0-dev \
     libgirepository1.0-dev \
     libpango1.0-dev \
@@ -34,7 +35,7 @@ COPY supervisor.conf /etc/supervisor/conf.d/
 
 # Set environment variables
 ENV APP_ENV=prod
-EXPOSE 8100
+EXPOSE 7880
 
 
 # Copy and set permissions for start.sh
