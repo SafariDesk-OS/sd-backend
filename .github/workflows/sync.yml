@@ -51,7 +51,7 @@ jobs:
             docker rm safari-open-source || true
             docker run -d --name safari-open-source \
               -v safari:/mnt \
-              --env-file /root/files/.env.prod \
+              --env-file /root/files/.env.open \
               -p 7880:7880 \
               ${{ secrets.DOCKER_USERNAME }}/safari-open-source:latest
             docker network connect safaridesk-net safari-open-source
