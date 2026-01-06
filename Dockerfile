@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
+    default-libmysqlclient-dev \
     libglib2.0-dev \
     libgirepository1.0-dev \
     libpango1.0-dev \
