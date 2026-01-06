@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import Group
 
-from tenant.models.SlaXModel import SLACondition, SLAReminder, SLAEscalations, SLATarget, SLA, BusinessHoursx, Holidays
+from tenant.models.SlaXModel import SLACondition, SLAReminder, SLAEscalations, SLATarget, SLA, BusinessHoursx, Holidays, SLAConfiguration
 from users.models import Users
 
 
@@ -173,3 +173,12 @@ class SLASerializer(serializers.ModelSerializer):
                 escalation.escalate_to_agents.set(escalate_to_agents)
 
         return instance
+
+
+class SLAConfigurationSerializer(serializers.ModelSerializer):
+    """Serializer for SLA Configuration"""
+    
+    class Meta:
+        model = SLAConfiguration
+        fields = ['id', 'allow_sla', 'allow_holidays', 'updated_at', 'created_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']

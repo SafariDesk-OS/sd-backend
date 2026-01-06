@@ -9,9 +9,47 @@ from rest_framework.response import Response
 from rest_framework import viewsets, status # Import status
 
 from tenant.models import SLA, SLATarget, SLACondition, SLAReminder, SLAEscalations, Department, BusinessHoursx, \
-    Holidays, SLAEscalation
-from tenant.serializers.SlaXSerializer import SLASerializer, BusinessHoursSerializer, HolidaySerializer
+    Holidays, SLAEscalation, SLAConfiguration
+from tenant.serializers.SlaXSerializer import SLASerializer, BusinessHoursSerializer, HolidaySerializer, SLAConfigurationSerializer
 from users.models import Users
+
+
+class SLAConfigurationViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing SLA configuration settings"""
+    queryset = SLAConfiguration.objects.all()
+    serializer_class = SLAConfigurationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return SLAConfiguration.objects.all()
+    
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        """Get the current SLA configuration (create if doesn't exist)"""
+        config, created = SLAConfiguration.objects.get_or_create(
+            pk=1,
+            defaults={'allow_sla': True, 'allow_holidays': True}
+        )
+        serializer = self.get_serializer(config)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'])
+    def update_config(self, request):
+        """Update the current SLA configuration"""
+        config, created = SLAConfiguration.objects.get_or_create(pk=1)
+        serializer = self.get_serializer(config, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'SLA configuration updated successfully',
+                'data': serializer.data
+            })
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class HolidayViewSet(viewsets.ModelViewSet):

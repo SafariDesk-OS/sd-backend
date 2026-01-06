@@ -96,9 +96,9 @@ class SLATarget(BaseEntity):
     sla = models.ForeignKey(SLA, on_delete=models.CASCADE, related_name='targets')
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES)
 
-    # Time to first response
-    first_response_time = models.PositiveIntegerField(validators=[MinValueValidator(1)])
-    first_response_unit = models.CharField(max_length=10, choices=TIME_UNITS, default='hours')
+    # Time to first response (optional - can be null)
+    first_response_time = models.PositiveIntegerField(null=True, blank=True, validators=[MinValueValidator(1)])
+    first_response_unit = models.CharField(max_length=10, choices=TIME_UNITS, default='hours', blank=True)
 
     # Time to next response (optional)
     next_response_time = models.PositiveIntegerField(null=True, blank=True, validators=[MinValueValidator(1)])
@@ -115,7 +115,7 @@ class SLATarget(BaseEntity):
         default='calendar'
     )
 
-    # Reminder and escalation toggles
+    # Reminder and escalation toggles (kept for backward compatibility but not used in UI)
     reminder_enabled = models.BooleanField(default=False)
     escalation_enabled = models.BooleanField(default=False)
 
@@ -283,3 +283,23 @@ class SLAViolation(models.Model):
     class Meta:
         verbose_name = "SLA Violation"
         verbose_name_plural = "SLA Violations"
+
+
+class SLAConfiguration(BaseEntity):
+    """Global SLA configuration settings"""
+    
+    # Allow SLA tracking system-wide
+    allow_sla = models.BooleanField(default=True, help_text="Enable or disable SLA tracking system-wide")
+    
+    # Allow holidays in SLA calculations
+    allow_holidays = models.BooleanField(default=True, help_text="Include holidays in SLA calculations")
+    
+    # Additional configuration options can be added here
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "SLA Configuration"
+        verbose_name_plural = "SLA Configurations"
+    
+    def __str__(self):
+        return f"SLA Config (SLA: {self.allow_sla}, Holidays: {self.allow_holidays})"
