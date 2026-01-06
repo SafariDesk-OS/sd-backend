@@ -2,7 +2,7 @@ import os
 from decouple import config
 from .base import *
 
-DEBUG = config("DEBUG", default=False, cast=bool)
+DEBUG = False
 SECRET_KEY = config("SECRET_KEY")
 
 DATABASES = {
