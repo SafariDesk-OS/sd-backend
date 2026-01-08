@@ -1,6 +1,6 @@
-# Contributing to SafariDesk
+# Contributing to SafariDesk_OS
 
-Thanks for helping improve SafariDesk! This guide explains how to get set up
+Thanks for helping improve SafariDesk_OS! This guide explains how to get set up
 and submit changes.
 
 ## Development setup
