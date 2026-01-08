@@ -10,6 +10,7 @@ from RNSafarideskBack import settings
 from RNSafarideskBack.settings import FILE_URL
 from tenant.models import Ticket, Requests, DepartmentEmails, Department
 from tenant.models.SettingModel import SettingSMTP, EmailTemplateCategory, EmailTemplate, EmailConfig, EmailSettings
+from users.models.BusinessModel import Business
 from tenant.serializers.AgentSerializer import AgentSerializer
 from tenant.serializers.DepartmentSerializer import DepartmentEmailSerializer, DepartmentEmailUpdateSerializer
 from tenant.serializers.SettingSerializer import SMTPSettingsSerializer, SMTPTestSerializer, \
@@ -221,12 +222,14 @@ class SMTPSettingsView(viewsets.ModelViewSet):
             return Response({"message": "SMTP settings created successfully."}, status=status.HTTP_201_CREATED)
 
     def update_general(self, request, *args, **kwargs):
-        
+        business = Business.objects.first()
+        if not business:
+            return Response({"message": "Business profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        business.name = request.data.get('name')
-        business.email = request.data.get('email')
-        business.phone = request.data.get('phone')
-        business.timezone = request.data.get('timezone')
+        business.name = request.data.get('name', business.name)
+        business.email = request.data.get('email', business.email)
+        business.phone = request.data.get('phone', business.phone)
+        business.timezone = request.data.get('timezone', business.timezone)
 
         if request.FILES:
             uploaded_files = request.FILES
@@ -293,6 +296,9 @@ class SMTPSettingsView(viewsets.ModelViewSet):
         """
         Get current business information including logo and favicon URLs.
         """
+        business = Business.objects.first()
+        if not business:
+            return Response({"message": "Business profile not found"}, status=status.HTTP_404_NOT_FOUND)
         
         return Response({
             "id": business.id,

@@ -14,13 +14,13 @@ class UserNotificationPreferenceSerializer(serializers.ModelSerializer):
     """
 
     resolved_matrix = serializers.SerializerMethodField()
-    business_id = serializers.IntegerField(read_only=True)
+    # business_id = serializers.IntegerField(read_only=True)  # Field removed from model
 
     class Meta:
         model = UserNotificationPreference
         fields = (
             "id",
-            "business_id",
+            # "business_id",
             "delivery_channels",
             "notification_matrix",
             "quiet_hours",
@@ -34,19 +34,21 @@ class UserNotificationPreferenceSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "updated_at", "resolved_matrix")
 
     def get_resolved_matrix(self, obj):
-        business = obj.business or (obj.user.business if obj.user else None)
+        # Business relation temporarily removed from models
+        # business = obj.business or (obj.user.business if obj.user else None)
+        business = None
         business_settings = NotificationSettingsService.get_business_settings(business)
         return NotificationSettingsService.build_effective_matrix(obj, business_settings)
 
 
 class OrganizationNotificationSettingSerializer(serializers.ModelSerializer):
-    business_id = serializers.IntegerField(read_only=True)
+    # business_id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = OrganizationNotificationSetting
         fields = (
             "id",
-            "business_id",
+            # "business_id",
             "delivery_channels",
             "notification_matrix",
             "digest_enabled",
@@ -55,4 +57,4 @@ class OrganizationNotificationSettingSerializer(serializers.ModelSerializer):
             "webhook_url",
             "updated_at",
         )
-        read_only_fields = ("id", "updated_at", "business_id")
+        read_only_fields = ("id", "updated_at")

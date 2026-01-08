@@ -858,8 +858,8 @@ class TaskViewSet(viewsets.ModelViewSet):
                 'assigned_to',
                 'linked_ticket'
             ).get(
-                id=task_id,
-                business=request.user.business
+                id=task_id
+                # business=request.user.business
             )
             
             # Query comments directly to ensure fresh data

@@ -4,7 +4,7 @@ from django.utils.text import slugify
 from tenant.models import Department, Ticket, TicketCategories, Task
 from tenant.models.SettingModel import EmailTemplateCategory, EmailTemplate, EmailConfig
 from tenant.models.SlaXModel import SLA, Holidays, SLATarget, BusinessHoursx, SLAConfiguration
-from tenant.models.KnowledgeBase import KBCategory
+from tenant.models.KnowledgeBase import KBCategory, KnowledgeBase
 from users.models import Users
 from util.email.templates import EMAIL_TEMPLATES
 from util.Holidays import HOLIDAYS
@@ -217,44 +217,12 @@ class BusinessSetup:
                     business_name = self.business.name if self.business else 'single tenant'
                     logger.info(f"Created ticket category: {cat.name} for business: {business_name}")
 
-            # Default KB categories
+            # Default KB categories (Simplified to just 'General')
             kb_categories_data = [
                 {
-                    'name': 'Account & Access',
-                    'description': 'Covers login issues, password resets, permissions, and user account management.',
-                },
-                {
-                    'name': 'Billing & Payments',
-                    'description': 'Information about invoices, subscriptions, pricing, and refund policies.',
-                },
-                {
-                    'name': 'Technical Support',
-                    'description': 'Articles addressing common technical problems, troubleshooting steps, and maintenance tips.',
-                },
-                {
-                    'name': 'Product Guides',
-                    'description': 'Step-by-step instructions, manuals, and feature explanations for your products or services.',
-                },
-                {
-                    'name': 'Policies & Compliance',
-                    'description': 'Details company policies, compliance standards, data protection, and legal guidelines.',
-                },
-                {
-                    'name': 'Updates & Announcements',
-                    'description': 'News, version releases, and updates related to the system or organization.',
-                },
-                {
-                    'name': 'FAQs',
-                    'description': 'Frequently asked questions with short, helpful answers covering general user concerns.',
-                },
-                {
-                    'name': 'Community & Feedback',
-                    'description': 'Information about user forums, feedback submission, and community engagement.',
-                },
-                {
-                    'name': 'Other / Miscellaneous',
-                    'description': 'For any general or uncategorized articles not covered by the other sections.',
-                },
+                    'name': 'General',
+                    'description': 'General information and announcements.',
+                }
             ]
 
             # Add KB categories
@@ -275,10 +243,61 @@ class BusinessSetup:
                 if created:
                     business_name = self.business.name if self.business else 'single tenant'
                     logger.info(f"Created KB category: {kb_cat.name} for business: {business_name}")
+                    
+            # Create Welcome Article
+            self.create_welcome_kb_article()
 
         except Exception as e:
             business_name = self.business.name if self.business else 'single tenant'
             logger.error(f"Error seeding default departments and categories for business {business_name}: {str(e)}", exc_info=True)
+
+    def create_welcome_kb_article(self):
+        """
+        Create a Welcome KB article in the General category
+        """
+        try:
+            # Find General category
+            category = KBCategory.objects.filter(name="General", business=self.business).first()
+            if not category:
+                # Fallback if General wasn't created for some reason
+                category = KBCategory.objects.create(
+                    name="General", 
+                    business=self.business,
+                    slug="general",
+                    description="General information",
+                    is_public=True
+                )
+
+            # Check if article already exists
+            if KnowledgeBase.objects.filter(title="Welcome to SafariDesk", business=self.business).exists():
+                return
+
+            html_content = """
+<h1>Welcome to your new Support Center!</h1>
+<p>We are excited to help you provide excellent support to your customers.</p>
+<p><strong>Here are a few things you can do in the Knowledge Base:</strong></p>
+<ul>
+    <li>Create categories to organize your articles.</li>
+    <li>Write helpful articles, guides, and FAQs.</li>
+    <li>Publish articles to your public support portal.</li>
+</ul>
+<p>Happy writing!</p>
+"""
+            
+            KnowledgeBase.objects.create(
+                title="Welcome to SafariDesk",
+                slug=slugify("Welcome to SafariDesk"),
+                content=html_content,
+                category=category,
+                business=self.business,
+                status='published',
+                author=self.user,
+                is_public=True
+            )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error creating welcome KB article: {str(e)}")
 
     def create_welcome_ticket(self):
         # Create default department if it doesn't exist
