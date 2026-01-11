@@ -230,6 +230,7 @@ class SMTPSettingsView(viewsets.ModelViewSet):
         business.email = request.data.get('email', business.email)
         business.phone = request.data.get('phone', business.phone)
         business.timezone = request.data.get('timezone', business.timezone)
+        business.support_url = request.data.get('support_url', business.support_url)
 
         if request.FILES:
             uploaded_files = request.FILES
@@ -289,6 +290,7 @@ class SMTPSettingsView(viewsets.ModelViewSet):
                 "favicon_url": business.favicon_url,
                 "phone": business.phone,
                 "timezone": business.timezone,
+                "support_url": business.support_url,
             }
         }, status=status.HTTP_200_OK)
 
@@ -310,6 +312,7 @@ class SMTPSettingsView(viewsets.ModelViewSet):
             "phone": business.phone,
             "timezone": business.timezone,
             "support_url": business.support_url,
+            "domain_url": business.domain_url,
         }, status=status.HTTP_200_OK)
 
     def retrieve(self, request, *args, **kwargs):

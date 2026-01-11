@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import IntegrityError
 
-from users.models.BusinessModel import CustomDomains
+from users.models.BusinessModel import CustomDomains, Business
 from users.serializers.CustomDomainSerializer import (
     CustomDomainSerializer,
     DomainCheckSerializer
@@ -72,12 +72,23 @@ class CustomDomainViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         """Delete domain and clear cache"""
         domain_name = instance.domain
+        was_verified = instance.is_verified
         business_name = "SafariDesk"
 
         # Clear cache before deletion
         CustomDomainMiddleware.clear_domain_cache(domain_name)
 
         instance.delete()
+
+        # If it was verified, reset business domain url
+        if was_verified:
+            business = Business.objects.first()
+            if business and business.domain == domain_name:
+                business.domain = ""
+                # Optional: set to a default domain if available
+                # business.domain_url = "https://app.safaridesk.io"
+                business.save()
+                logger.info(f"Business domain reset after deleting verified domain {domain_name}")
 
         logger.info(f"Custom domain {domain_name} deleted for business {business_name}")
 
@@ -112,6 +123,14 @@ class CustomDomainViewSet(viewsets.ModelViewSet):
             
             # Clear cache to ensure new domain is recognized
             CustomDomainMiddleware.clear_domain_cache(domain.domain)
+
+            # Update business model with verified domain
+            business = Business.objects.first()
+            if business:
+                business.domain = domain.domain
+                business.domain_url = f"https://{domain.domain}"
+                business.save()
+                logger.info(f"[DOMAIN VERIFY] Business '{business.name}' updated with domain '{domain.domain}'")
 
             return Response({
                 "message": "Domain verified successfully!",

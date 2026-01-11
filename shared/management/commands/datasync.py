@@ -6,6 +6,7 @@ from RNSafarideskBack.settings import SUPERUSER_EMAIL, SUPERUSER_FIRST_NAME, SUP
     SUPERUSER_PHONE_NUMBER, SUPERUSER_PASSWORD, CORE_EMAIL, CORE_FIRST_NAME, CORE_LAST_NAME, CORE_USERNAME, \
     CORE_PHONE_NUMBER, CORE_PASSWORD
 from users.models import SuspiciousActivityType, Users
+from users.models.BusinessModel import Business
 from util.Seeder import SUSPICIOUS_ACTIVITY_TYPES
 
 
@@ -18,6 +19,7 @@ class Command(BaseCommand):
         self.createActivies()
         self.create_superuser()
         self.create_system_user()
+        self.create_default_business()
         self.stdout.write("Data synchronization complete")
 
     def createActivies(self):
@@ -36,7 +38,7 @@ class Command(BaseCommand):
 
     def create_superuser(self):
         """Create a superuser if one does not exist."""
-        if not Users.objects.filter(is_superuser=True, email=SUPERUSER_EMAIL).exists():
+        if not Users.objects.filter(username=SUPERUSER_USERNAME).exists():
             self.stdout.write("Creating superuser...")
             role, _ = Group.objects.get_or_create(name='admin')
             superuser = Users.objects.create(
@@ -56,11 +58,11 @@ class Command(BaseCommand):
             superuser.groups.add(role)
             self.stdout.write(f"Superuser '{SUPERUSER_USERNAME}' created successfully.")
             return superuser
-        self.stdout.write("Superuser already exists.")
-        return Users.objects.get(is_superuser=True, email=SUPERUSER_EMAIL)
+        self.stdout.write("Superuser already exists (username check).")
+        return Users.objects.get(username=SUPERUSER_USERNAME)
 
     def create_system_user(self):
-        if not Users.objects.filter(is_superuser=True, email="system@safaridesk.io").exists():
+        if not Users.objects.filter(username="system").exists():
             self.stdout.write("Creating system user ...")
             role, _ = Group.objects.get_or_create(name='admin')
             system = Users.objects.create(
@@ -79,6 +81,21 @@ class Command(BaseCommand):
             system.department.set([])
             system.groups.add(role)
             self.stdout.write(f"System user created successfully.")
-            return None
+            return system
         self.stdout.write("System user already exists.")
-        return None
+        return Users.objects.get(username="system")
+
+    def create_default_business(self):
+        if not Business.objects.exists():
+            self.stdout.write("Creating default business profile...")
+            owner = Users.objects.filter(is_superuser=True).first()
+            Business.objects.create(
+                name="SafariDesk Local",
+                email="admin@safarideskopenlocal.test",
+                phone="92809829109",
+                owner=owner,
+                is_active=True
+            )
+            self.stdout.write(self.style.SUCCESS("Default business profile created."))
+        else:
+            self.stdout.write("Business profile already exists.")

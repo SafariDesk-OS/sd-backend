@@ -115,6 +115,8 @@ class UserView(viewsets.ModelViewSet):
         """Retrieve current logged-in user's profile data"""
         try:
             user = request.user
+            from users.models.BusinessModel import Business
+            business = Business.objects.first()
             
             user_data = {
                 'id': user.id,
@@ -123,6 +125,16 @@ class UserView(viewsets.ModelViewSet):
                 'email': user.email,
                 'avatar_url': user.avatar_url,
                 'phone_number': user.phone_number,
+                'business': {
+                    "id": business.id if business else None,
+                    "name": business.name if business else None,
+                    "domain": business.domain if business else None,
+                    "email": business.email if business else None,
+                    "logo_url": business.logo_url if business else None,
+                    "favicon_url": business.favicon_url if business else None,
+                    "support_url": business.support_url if business else None,
+                    "domain_url": business.domain_url if business else None,
+                } if business else None
             }
             
             return Response(user_data, status=status.HTTP_200_OK)

@@ -683,7 +683,11 @@ class TaskViewSet(viewsets.ModelViewSet):
             comment = request.data.get('comment', '')
 
             # Convert string boolean to actual boolean
-            is_internal = str(request.data.get("is_internal", "false")).lower() == "true"
+            is_internal_raw = request.data.get("is_internal")
+            if is_internal_raw is None:
+                is_internal = False
+            else:
+                is_internal = str(is_internal_raw).lower() == "true"
 
             # Add the comment to the ticket
             com = task.comments.create(
@@ -863,12 +867,19 @@ class TaskViewSet(viewsets.ModelViewSet):
             )
             
             # Query comments directly to ensure fresh data
-            comments = TaskComment.objects.filter(
+            comments_queryset = TaskComment.objects.filter(
                 task=task
             ).select_related('author').prefetch_related(
                 'attachment',
                 'replies__author'
             ).order_by('created_at')
+            
+            # Check if user is a customer to filter internal notes
+            is_customer = getattr(request.user, 'category', 'CUSTOMER') == 'CUSTOMER'
+            if is_customer:
+                comments_queryset = comments_queryset.filter(is_internal=False)
+                
+            comments = comments_queryset
         except Task.DoesNotExist:
             return Response({
                 "error": "Task not found"
@@ -1086,7 +1097,7 @@ class TaskViewSet(viewsets.ModelViewSet):
             response = HttpResponse(
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
-            response['Content-Disposition'] = f'attachment; filename="tasks_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+            response['Content-Disposition'] = f'attachment; filename="tasks_export_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
             
             # Save workbook to response
             wb.save(response)

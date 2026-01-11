@@ -4,7 +4,7 @@ from django.utils.text import slugify
 from tenant.models import Department, Ticket, TicketCategories, Task
 from tenant.models.SettingModel import EmailTemplateCategory, EmailTemplate, EmailConfig
 from tenant.models.SlaXModel import SLA, Holidays, SLATarget, BusinessHoursx, SLAConfiguration
-from tenant.models.KnowledgeBase import KBCategory, KnowledgeBase
+from tenant.models.KnowledgeBase import KBCategory, KBArticle
 from users.models import Users
 from util.email.templates import EMAIL_TEMPLATES
 from util.Holidays import HOLIDAYS
@@ -40,8 +40,6 @@ class BusinessSetup:
             'allow_sla': False,
             'allow_holidays': False,
         }
-        if self.business:
-            config_data['business'] = self.business
         
         # Create or update configuration (using pk=1 as singleton pattern)
         SLAConfiguration.objects.update_or_create(
@@ -59,8 +57,6 @@ class BusinessSetup:
             "is_active": True,
             "created_by": self.user,
         }
-        if self.business:
-            sla_data['business'] = self.business
         default_sla = SLA.objects.create(**sla_data)
 
         # Create SLA Targets
@@ -97,20 +93,14 @@ class BusinessSetup:
                 "end_time": time(17, 0),
                 "is_working_day": True,
             }
-            if self.business:
-                hours_data['business'] = self.business
             BusinessHoursx.objects.create(**hours_data)
 
     def seed_default_email_templates(self):
         category_kwargs = {'name': "Default Email Templates"}
-        if self.business:
-            category_kwargs['business'] = self.business
         category, created = EmailTemplateCategory.objects.get_or_create(**category_kwargs)
 
         for template_name, template_data in EMAIL_TEMPLATES.items():
             template_kwargs = {'name': template_name}
-            if self.business:
-                template_kwargs['business'] = self.business
             EmailTemplate.objects.update_or_create(
                 **template_kwargs,
                 defaults={
@@ -124,15 +114,11 @@ class BusinessSetup:
 
     def seed_default_email_config(self):
         category_kwargs = {'name': "Default Email Templates"}
-        if self.business:
-            category_kwargs['business'] = self.business
         category = EmailTemplateCategory.objects.get(**category_kwargs)
         config_data = {
             'default_template': category,
             'email_fetching': True,
         }
-        if self.business:
-            config_data['business'] = self.business
         EmailConfig.objects.create(**config_data)
 
     def seed_default_holidays(self):
@@ -141,8 +127,6 @@ class BusinessSetup:
                 'name': holiday["name"],
                 'date': holiday["date"],
             }
-            if self.business:
-                holiday_kwargs['business'] = self.business
             Holidays.objects.get_or_create(
                 **holiday_kwargs,
                 defaults={'is_recurring': True}
@@ -167,15 +151,12 @@ class BusinessSetup:
             # Add departments
             for dept_data in departments_data:
                 dept_kwargs = {'name': dept_data['name']}
-                if self.business:
-                    dept_kwargs['business'] = self.business
                 dept, created = Department.objects.get_or_create(
                     **dept_kwargs,
                     defaults={'support_email': dept_data['support_email']}
                 )
                 if created:
-                    business_name = self.business.name if self.business else 'single tenant'
-                    logger.info(f"Created department: {dept.name} for business: {business_name}")
+                    logger.info(f"Created department: {dept.name}")
 
             # Default ticket categories
             ticket_categories_data = [
@@ -204,8 +185,6 @@ class BusinessSetup:
             # Add ticket categories
             for cat_data in ticket_categories_data:
                 cat_kwargs = {'name': cat_data['name']}
-                if self.business:
-                    cat_kwargs['business'] = self.business
                 cat, created = TicketCategories.objects.get_or_create(
                     **cat_kwargs,
                     defaults={
@@ -214,8 +193,7 @@ class BusinessSetup:
                     }
                 )
                 if created:
-                    business_name = self.business.name if self.business else 'single tenant'
-                    logger.info(f"Created ticket category: {cat.name} for business: {business_name}")
+                    logger.info(f"Created ticket category: {cat.name}")
 
             # Default KB categories (Simplified to just 'General')
             kb_categories_data = [
@@ -229,8 +207,6 @@ class BusinessSetup:
             for i, cat_data in enumerate(kb_categories_data):
                 slug = slugify(cat_data['name'])
                 kb_cat_kwargs = {'name': cat_data['name']}
-                if self.business:
-                    kb_cat_kwargs['business'] = self.business
                 kb_cat, created = KBCategory.objects.get_or_create(
                     **kb_cat_kwargs,
                     defaults={
@@ -241,15 +217,13 @@ class BusinessSetup:
                     }
                 )
                 if created:
-                    business_name = self.business.name if self.business else 'single tenant'
-                    logger.info(f"Created KB category: {kb_cat.name} for business: {business_name}")
+                    logger.info(f"Created KB category: {kb_cat.name}")
                     
             # Create Welcome Article
             self.create_welcome_kb_article()
 
         except Exception as e:
-            business_name = self.business.name if self.business else 'single tenant'
-            logger.error(f"Error seeding default departments and categories for business {business_name}: {str(e)}", exc_info=True)
+            logger.error(f"Error seeding default departments and categories: {str(e)}", exc_info=True)
 
     def create_welcome_kb_article(self):
         """
@@ -257,19 +231,18 @@ class BusinessSetup:
         """
         try:
             # Find General category
-            category = KBCategory.objects.filter(name="General", business=self.business).first()
+            category = KBCategory.objects.filter(name="General").first()
             if not category:
                 # Fallback if General wasn't created for some reason
                 category = KBCategory.objects.create(
                     name="General", 
-                    business=self.business,
                     slug="general",
                     description="General information",
                     is_public=True
                 )
 
             # Check if article already exists
-            if KnowledgeBase.objects.filter(title="Welcome to SafariDesk", business=self.business).exists():
+            if KBArticle.objects.filter(title="Welcome to SafariDesk").exists():
                 return
 
             html_content = """
@@ -284,12 +257,11 @@ class BusinessSetup:
 <p>Happy writing!</p>
 """
             
-            KnowledgeBase.objects.create(
+            KBArticle.objects.create(
                 title="Welcome to SafariDesk",
                 slug=slugify("Welcome to SafariDesk"),
                 content=html_content,
                 category=category,
-                business=self.business,
                 status='published',
                 author=self.user,
                 is_public=True
@@ -303,13 +275,11 @@ class BusinessSetup:
         # Create default department if it doesn't exist
         department, _ = Department.objects.get_or_create(
             name="Support",
-            business=self.business
         )
 
         # Create default category if it doesn't exist
         category, _ = TicketCategories.objects.get_or_create(
             name="Getting Started",
-            business=self.business,
             defaults={'description': 'Initial setup and guidance'}
         )
 
@@ -326,7 +296,7 @@ class BusinessSetup:
 <p>Happy ticketing!</p>
 """
         ticket_id = Helper().generate_incident_code()
-        default_sla = SLA.objects.filter(business=self.business, name="Default SLA").first()
+        default_sla = SLA.objects.filter(name="Default SLA").first()
         ticket = Ticket.objects.create(
             ticket_id=ticket_id,
             title="Get started",
@@ -336,7 +306,6 @@ class BusinessSetup:
             creator_name=self.user.full_name(),
             creator_email=self.user.email,
             created_by=self.user,
-            business=self.business,
             priority="low",
             status="open",
             source='internal',
@@ -374,6 +343,5 @@ class BusinessSetup:
                 task_trackid=Helper().generate_task_code(),
                 department=department,
                 linked_ticket=ticket,
-                business=self.business,
                 created_by=self.user
             )

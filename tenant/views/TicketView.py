@@ -327,9 +327,17 @@ class TicketView(viewsets.ModelViewSet):
         
         # Collect all activities (comments + system events)
         all_activities = []
+        
+        # Check if user is a customer to filter internal notes
+        is_customer = getattr(request.user, 'category', 'CUSTOMER') == 'CUSTOMER'
 
         def _append_comments(src_ticket):
-            for comment in src_ticket.comments.all():
+            # If customer, filter out internal comments
+            comments_queryset = src_ticket.comments.all()
+            if is_customer:
+                comments_queryset = comments_queryset.filter(is_internal=False)
+                
+            for comment in comments_queryset:
                 attachments = []
                 for a in comment.attachment.all():
                     attachments.append({
@@ -1079,7 +1087,14 @@ class TicketView(viewsets.ModelViewSet):
                 
             customer_tier = request.data.get('customer_tier', 'standard')  # Add customer tier
             source = request.data.get('source', 'web')  # Add source field with default 'web'
-            is_public = True if str(request.data.get('is_public')).lower() == 'true' else False
+            
+            # Use raw value to handle missing key properly
+            is_public_raw = request.data.get('is_public')
+            if is_public_raw is None:
+                is_public = True
+            else:
+                is_public = str(is_public_raw).lower() == 'true'
+                
             assignee_id = request.data.get('assignee_id')
             raw_tags = []
             try:
@@ -1226,7 +1241,7 @@ class TicketView(viewsets.ModelViewSet):
                             priority_hours_str = priority_dict.get(priority)
                             if priority_hours_str:
                                 priority_hours = int(priority_hours_str)
-                                due_date = datetime.now() + timedelta(hours=priority_hours)
+                                due_date = timezone.now() + timedelta(hours=priority_hours)
                                 ticket.due_date = due_date
                                 ticket.save()
                             else:
@@ -1242,7 +1257,7 @@ class TicketView(viewsets.ModelViewSet):
                         priority_hours_str = priority_dict.get(priority)
                         if priority_hours_str:
                             priority_hours = int(priority_hours_str)
-                            due_date = datetime.now() + timedelta(hours=priority_hours)
+                            due_date = timezone.now() + timedelta(hours=priority_hours)
                             ticket.due_date = due_date
                             ticket.save()
                         else:
@@ -1271,7 +1286,7 @@ class TicketView(viewsets.ModelViewSet):
                 ticket.assigned_to = agent
                 ticket.status = 'assigned'
                 ticket.updated_by = request.user
-                ticket.updated_at = datetime.now()
+                ticket.updated_at = timezone.now()
                 ticket.save(update_fields=['assigned_to', 'status', 'updated_by', 'updated_at'])
 
                 # Activity log
@@ -1612,7 +1627,7 @@ class TicketView(viewsets.ModelViewSet):
             # Handle unassignment when agent_id is None or null
             if agent_id is None:
                 ticket.assigned_to = None
-                ticket.updated_at = datetime.now()
+                ticket.updated_at = timezone.now()
                 ticket.status = 'created'
                 ticket.updated_by = request.user
                 ticket.save()
@@ -1674,7 +1689,7 @@ class TicketView(viewsets.ModelViewSet):
                 
             agent = get_object_or_404(Users, id=agent_id)
             ticket.assigned_to = agent
-            ticket.updated_at = datetime.now()
+            ticket.updated_at = timezone.now()
             ticket.status = 'assigned'
             ticket.updated_by = request.user
             ticket.save()
@@ -1759,7 +1774,7 @@ class TicketView(viewsets.ModelViewSet):
             ticket = get_object_or_404(Ticket, id=ticket_id)
 
             ticket.assigned_to = request.user
-            ticket.updated_at = datetime.now()
+            ticket.updated_at = timezone.now()
             ticket.status = 'assigned'
             ticket.updated_by = request.user
             ticket.save()
@@ -1873,7 +1888,7 @@ class TicketView(viewsets.ModelViewSet):
             # Update the ticket status
             ticket.status = new_status
             ticket.notes = notes
-            ticket.updated_at = datetime.now()
+            ticket.updated_at = timezone.now()
             ticket.updated_by = request.user
             ticket.save()
 
@@ -1973,7 +1988,7 @@ class TicketView(viewsets.ModelViewSet):
 
             # Update the ticket department
             ticket.department = department
-            ticket.updated_at = datetime.now()
+            ticket.updated_at = timezone.now()
             ticket.updated_by = request.user
             ticket.save()
 
@@ -2034,7 +2049,7 @@ class TicketView(viewsets.ModelViewSet):
 
             # Update the ticket category
             ticket.category = category
-            ticket.updated_at = datetime.now()
+            ticket.updated_at = timezone.now()
             ticket.updated_by = request.user
             ticket.save()
 
@@ -2083,7 +2098,7 @@ class TicketView(viewsets.ModelViewSet):
 
             # Validate priority value (optional: ensure it's one of allowed choices)
             ticket.priority = new_priority
-            ticket.updated_at = datetime.now()
+            ticket.updated_at = timezone.now()
             ticket.updated_by = request.user
             ticket.save()
 
@@ -2130,7 +2145,7 @@ class TicketView(viewsets.ModelViewSet):
 
             # Update the ticket source
             ticket.source = new_source.lower()
-            ticket.updated_at = datetime.now()
+            ticket.updated_at = timezone.now()
             ticket.updated_by = request.user
             ticket.save()
 
@@ -2209,7 +2224,7 @@ class TicketView(viewsets.ModelViewSet):
 
             # Update the ticket due date
             ticket.due_date = new_due_date
-            ticket.updated_at = datetime.now()
+            ticket.updated_at = timezone.now()
             ticket.updated_by = request.user
             ticket.save()
 
@@ -2277,7 +2292,14 @@ class TicketView(viewsets.ModelViewSet):
             comment = request.data.get('comment')
             # Sanitize comment for MySQL if necessary
             comment = _sanitize_text_for_mysql(comment) if comment else comment
-            is_internal = str(request.data.get("is_internal", "false")).lower() == "true"
+            
+            # Robust boolean conversion
+            is_internal_raw = request.data.get("is_internal")
+            if is_internal_raw is None:
+                is_internal = False
+            else:
+                is_internal = str(is_internal_raw).lower() == "true"
+                
             # logger.info(f"Adding comment by user: {request.user} (ID: {request.user.id}, Email: {request.user.email})")
 
             # Set author if user is authenticated, otherwise None
@@ -2332,7 +2354,7 @@ class TicketView(viewsets.ModelViewSet):
                 if author and ticket.status == 'open':
                     old_status = ticket.status
                     ticket.status = 'in_progress'
-                    ticket.updated_at = datetime.now()
+                    ticket.updated_at = timezone.now()
                     ticket.updated_by = author
                     ticket.save(update_fields=['status', 'updated_at', 'updated_by'])
                     
@@ -2966,7 +2988,7 @@ class TicketView(viewsets.ModelViewSet):
             response = HttpResponse(
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
-            response['Content-Disposition'] = f'attachment; filename="tickets_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+            response['Content-Disposition'] = f'attachment; filename="tickets_export_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
             
             # Save workbook to response
             wb.save(response)
