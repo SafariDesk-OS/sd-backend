@@ -129,12 +129,26 @@ class SLACalculator:
             return False
     
     def get_business_hours(self, weekday):
-        """Get business hours for a specific weekday"""
+        """Get business hours for a specific weekday, considering weekend inclusion"""
         try:
             business_hours = BusinessHours.objects.filter(
                 weekday=weekday,
                 is_working_day=True
             ).first()
+            
+            # If no specific business hours found for this weekday,
+            # check if weekends are included in any business hours config
+            if not business_hours and weekday in [5, 6]:  # Saturday or Sunday
+                weekend_inclusive = BusinessHours.objects.filter(
+                    include_weekends=True,
+                    is_working_day=True
+                ).first()
+                
+                if weekend_inclusive:
+                    # Use the same hours as configured for weekdays
+                    logger.debug(f"Using weekend-inclusive hours for weekday {weekday}")
+                    return weekend_inclusive
+            
             logger.debug(f"Business hours for weekday {weekday}: {business_hours}")
             return business_hours
         except Exception as e:

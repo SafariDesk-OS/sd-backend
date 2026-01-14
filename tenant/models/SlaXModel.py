@@ -10,7 +10,8 @@ class SLA(BaseEntity):
 
     OPERATIONAL_HOURS_CHOICES = [
         ('calendar', 'Calendar Hours (24 hrs x 7 days)'),
-        ('business', 'Business Hours'),
+        ('business', 'Business Hours (9 AM - 5 PM, Mon-Fri)'),
+        ('business_with_weekends', 'Business Hours (9 AM - 5 PM, Mon-Sun)'),
         ('custom', 'Custom Hours'),
     ]
 
@@ -22,14 +23,14 @@ class SLA(BaseEntity):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     operational_hours = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=OPERATIONAL_HOURS_CHOICES,
-        default='calendar'
+        default='business'
     )
     evaluation_method = models.CharField(
         max_length=20,
         choices=EVALUATION_CHOICES,
-        default='conditions_met'
+        default='ticket_creation'  # Default to ticket creation time
     )
     is_active = models.BooleanField(default=True)
 
@@ -80,10 +81,10 @@ class SLATarget(BaseEntity):
     """SLA targets for different priority levels"""
 
     PRIORITY_CHOICES = [
-        ('urgent', 'Urgent'),
-        ('high', 'High'),
-        ('medium', 'Medium'),
-        ('low', 'Low'),
+        ('P1', 'P1 - Critical'),
+        ('P2', 'P2 - High'),
+        ('P3', 'P3 - Medium'),
+        ('P4', 'P4 - Low'),
     ]
 
     TIME_UNITS = [
@@ -110,9 +111,9 @@ class SLATarget(BaseEntity):
 
     # Operational hours for this target
     operational_hours = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=SLA.OPERATIONAL_HOURS_CHOICES,
-        default='calendar'
+        default='business'
     )
 
     # Reminder and escalation toggles (kept for backward compatibility but not used in UI)
@@ -224,9 +225,10 @@ class BusinessHoursx(BaseEntity):
 
     name = models.CharField(max_length=100)
     day_of_week = models.IntegerField(choices=DAYS_OF_WEEK)
-    start_time = models.TimeField()
-    end_time = models.TimeField()
+    start_time = models.TimeField(default='09:00')
+    end_time = models.TimeField(default='17:00')
     is_working_day = models.BooleanField(default=True)
+    include_weekends = models.BooleanField(default=False, help_text="Include weekends (Saturday and Sunday) as working days")
 
     def __str__(self):
         day_name = dict(self.DAYS_OF_WEEK)[self.day_of_week]

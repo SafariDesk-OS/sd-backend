@@ -8,7 +8,7 @@ from users.models import Users
 class BusinessHoursSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessHoursx
-        fields = ['id', 'name', 'day_of_week', 'start_time', 'end_time', 'is_working_day']
+        fields = ['id', 'name', 'day_of_week', 'start_time', 'end_time', 'is_working_day', 'include_weekends']
 
 
 class HolidaySerializer(serializers.ModelSerializer):

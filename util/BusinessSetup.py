@@ -7,7 +7,6 @@ from tenant.models.SlaXModel import SLA, Holidays, SLATarget, BusinessHoursx, SL
 from tenant.models.KnowledgeBase import KBCategory, KBArticle
 from users.models import Users
 from util.email.templates import EMAIL_TEMPLATES
-from util.Holidays import HOLIDAYS
 from util.Helper import Helper
 
 
@@ -27,7 +26,7 @@ class BusinessSetup:
         self.seed_default_sla()
         self.seed_default_email_templates()
         self.seed_default_email_config()
-        self.seed_default_holidays()
+        # Do NOT seed holidays - users should add their own via "+ New Holiday" button
         self.seed_default_departments_and_categories()
         # self.create_welcome_ticket()
 
@@ -59,13 +58,13 @@ class BusinessSetup:
         }
         default_sla = SLA.objects.create(**sla_data)
 
-        # Create SLA Targets
-        priorities = ["urgent", "high", "medium", "low"]
+        # Create SLA Targets with P1-P4 priorities
+        priorities = ["P1", "P2", "P3", "P4"]
         target_times = {
-            "urgent": {"first_response": 1, "first_unit": "hours", "resolution": 4, "resolution_unit": "hours"},
-            "high": {"first_response": 2, "first_unit": "hours", "resolution": 8, "resolution_unit": "hours"},
-            "medium": {"first_response": 4, "first_unit": "hours", "resolution": 24, "resolution_unit": "hours"},
-            "low": {"first_response": 8, "first_unit": "hours", "resolution": 48, "resolution_unit": "hours"},
+            "P1": {"first_response": 1, "first_unit": "hours", "resolution": 4, "resolution_unit": "hours"},
+            "P2": {"first_response": 2, "first_unit": "hours", "resolution": 8, "resolution_unit": "hours"},
+            "P3": {"first_response": 4, "first_unit": "hours", "resolution": 24, "resolution_unit": "hours"},
+            "P4": {"first_response": 8, "first_unit": "hours", "resolution": 48, "resolution_unit": "hours"},
         }
 
         for priority in priorities:
@@ -84,14 +83,19 @@ class BusinessSetup:
                 escalation_enabled=False
             )
 
-        # Create Business Hours (Monday to Friday, 8 AM - 5 PM)
-        for day_of_week in range(5):
+        # Create Business Hours for all 7 days (Mon-Fri: 9 AM - 5 PM working days, Sat-Sun: non-working)
+        for day_of_week in range(7):  # 0-6 (Monday-Sunday)
+            # Weekdays (Mon-Fri) are working days with 9 AM - 5 PM hours
+            # Weekends (Sat-Sun) are non-working days
+            is_working = day_of_week < 5  # Monday to Friday
+            
             hours_data = {
                 "name": f"{BusinessHoursx.DAYS_OF_WEEK[day_of_week][1]}",
                 "day_of_week": day_of_week,
-                "start_time": time(8, 0),
-                "end_time": time(17, 0),
-                "is_working_day": True,
+                "start_time": time(9, 0) if is_working else time(9, 30),  # 9:00 for weekdays, 9:30 for weekends (matching screenshot)
+                "end_time": time(17, 0) if is_working else time(12, 0),  # 17:00 for weekdays, 12:00 for weekends (matching screenshot)
+                "is_working_day": is_working,
+                "include_weekends": False,
             }
             BusinessHoursx.objects.create(**hours_data)
 
@@ -121,16 +125,6 @@ class BusinessSetup:
         }
         EmailConfig.objects.create(**config_data)
 
-    def seed_default_holidays(self):
-        for holiday in HOLIDAYS:
-            holiday_kwargs = {
-                'name': holiday["name"],
-                'date': holiday["date"],
-            }
-            Holidays.objects.get_or_create(
-                **holiday_kwargs,
-                defaults={'is_recurring': True}
-            )
 
     def seed_default_departments_and_categories(self):
         """
