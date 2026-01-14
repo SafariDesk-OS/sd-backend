@@ -52,6 +52,17 @@ class SLAConfigurationViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
+class BusinessHoursViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing Business Hours"""
+    queryset = BusinessHoursx.objects.all()
+    serializer_class = BusinessHoursSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        return BusinessHoursx.objects.all().order_by('day_of_week')
+
+
 class HolidayViewSet(viewsets.ModelViewSet):
     queryset = Holidays.objects.all()
     serializer_class = HolidaySerializer
@@ -125,18 +136,3 @@ class SLAViewSet(viewsets.ModelViewSet):
         sla.is_active = False
         sla.save()
         return Response({'status': 'SLA deactivated'})
-
-    @action(detail=False, methods=['get'])
-    def business_hours(self, request):
-        """
-        Get all business hours configurations for the authenticated user's business.
-        """
-        try:
-            business_hours_queryset = BusinessHoursx.objects.all()
-            serializer = BusinessHoursSerializer(business_hours_queryset, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({
-                "message": "Error retrieving business hours",
-                "details": str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

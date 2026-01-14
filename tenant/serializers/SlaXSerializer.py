@@ -180,5 +180,5 @@ class SLAConfigurationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = SLAConfiguration
-        fields = ['id', 'allow_sla', 'allow_holidays', 'updated_at', 'created_at']
+        fields = ['id', 'allow_sla', 'allow_holidays', 'include_weekends', 'updated_at', 'created_at']
         read_only_fields = ['id', 'created_at', 'updated_at']

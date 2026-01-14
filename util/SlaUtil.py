@@ -2,7 +2,7 @@
 from django.utils import timezone
 from datetime import datetime, timedelta, time
 import pytz
-from tenant.models.SlaModel import BusinessHours, Holiday
+from tenant.models.SlaXModel import BusinessHoursx, Holidays
 import logging
 
 logger = logging.getLogger(__name__)
@@ -123,7 +123,7 @@ class SLACalculator:
     def has_business_hours(self):
         """Check if any business hours are configured"""
         try:
-            return BusinessHours.objects.exists()
+            return BusinessHoursx.objects.exists()
         except Exception as e:
             logger.error(f"Error checking business hours: {e}")
             return False
@@ -131,8 +131,8 @@ class SLACalculator:
     def get_business_hours(self, weekday):
         """Get business hours for a specific weekday"""
         try:
-            business_hours = BusinessHours.objects.filter(
-                weekday=weekday,
+            business_hours = BusinessHoursx.objects.filter(
+                day_of_week=weekday,
                 is_working_day=True
             ).first()
             logger.debug(f"Business hours for weekday {weekday}: {business_hours}")
@@ -145,11 +145,11 @@ class SLACalculator:
         """Check if a date is a holiday"""
         try:
             # Check for exact date match
-            if Holiday.objects.filter(date=date).exists():
+            if Holidays.objects.filter(date=date).exists():
                 return True
             
             # Check for recurring holidays (same month/day)
-            recurring_holidays = Holiday.objects.filter(
+            recurring_holidays = Holidays.objects.filter(
                 is_recurring=True,
                 date__month=date.month,
                 date__day=date.day

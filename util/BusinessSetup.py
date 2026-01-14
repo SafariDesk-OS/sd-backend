@@ -122,15 +122,9 @@ class BusinessSetup:
         EmailConfig.objects.create(**config_data)
 
     def seed_default_holidays(self):
-        for holiday in HOLIDAYS:
-            holiday_kwargs = {
-                'name': holiday["name"],
-                'date': holiday["date"],
-            }
-            Holidays.objects.get_or_create(
-                **holiday_kwargs,
-                defaults={'is_recurring': True}
-            )
+        # Default holiday creation has been intentionally removed
+        # System now requires holidays to be explicitly created by users
+        pass
 
     def seed_default_departments_and_categories(self):
         """

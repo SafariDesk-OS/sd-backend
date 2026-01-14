@@ -286,13 +286,33 @@ class SLAViolation(models.Model):
 
 
 class SLAConfiguration(BaseEntity):
-    """Global SLA configuration settings"""
+    """Global SLA configuration settings
+    
+    CRITICAL: Configuration Locking Requirement
+    
+    When a ticket is created, the system must capture the CURRENT state of:
+    - BusinessHoursx entries (enabled days, start/end times)
+    - include_weekends toggle value
+    - This snapshot becomes immutable for that ticket's SLA calculations
+    
+    Changes to SLAConfiguration after ticket creation must NOT retroactively
+    affect existing tickets. Each ticket uses the configuration active at its
+    creation timestamp (date, hour, minute).
+    
+    Implementation responsibility:
+    - Ticket model must store or reference the config snapshot at creation
+    - SLA calculation engine must use the ticket's config, not current settings
+    - New tickets created after config change will use updated settings
+    """
     
     # Allow SLA tracking system-wide
     allow_sla = models.BooleanField(default=True, help_text="Enable or disable SLA tracking system-wide")
     
     # Allow holidays in SLA calculations
     allow_holidays = models.BooleanField(default=True, help_text="Include holidays in SLA calculations")
+    
+    # Weekend inclusion toggle
+    include_weekends = models.BooleanField(default=False, help_text="Include Saturday and Sunday in SLA calculations. When OFF, weekends are excluded regardless of BusinessHoursx settings.")
     
     # Additional configuration options can be added here
     updated_at = models.DateTimeField(auto_now=True)
@@ -302,4 +322,4 @@ class SLAConfiguration(BaseEntity):
         verbose_name_plural = "SLA Configurations"
     
     def __str__(self):
-        return f"SLA Config (SLA: {self.allow_sla}, Holidays: {self.allow_holidays})"
+        return f"SLA Config (SLA: {self.allow_sla}, Holidays: {self.allow_holidays}, Weekends: {self.include_weekends})"
