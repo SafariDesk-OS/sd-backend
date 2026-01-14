@@ -42,3 +42,4 @@ temp_github_base.py
 
 RNSafarideskBack/settings/local_prod.py
 celerybeat-schedule
+celerybeat-schedule*
