@@ -206,9 +206,12 @@ class BusinessSetup:
             # Add KB categories
             for i, cat_data in enumerate(kb_categories_data):
                 slug = slugify(cat_data['name'])
+<<<<<<< Updated upstream
                 kb_cat_kwargs = {'name': cat_data['name']}
+=======
+>>>>>>> Stashed changes
                 kb_cat, created = KBCategory.objects.get_or_create(
-                    **kb_cat_kwargs,
+                    name=cat_data['name'],
                     defaults={
                         'slug': slug,
                         'description': cat_data['description'],
