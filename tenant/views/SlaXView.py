@@ -64,6 +64,76 @@ class HolidayViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
         return queryset
 
+
+class BusinessHoursViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing business hours"""
+    queryset = BusinessHoursx.objects.all()
+    serializer_class = BusinessHoursSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return BusinessHoursx.objects.all().order_by('day_of_week')
+    
+    def create(self, request, *args, **kwargs):
+        """Create business hours - supports both single and bulk creation"""
+        # Handle wrapped data format {data: [...]}
+        data = request.data.get('data', request.data)
+        
+        # Support both single object and array
+        many = isinstance(data, list)
+        
+        # Transform weekday to day_of_week if present
+        if many:
+            for item in data:
+                if 'weekday' in item and 'day_of_week' not in item:
+                    item['day_of_week'] = item.pop('weekday')
+        else:
+            if 'weekday' in data and 'day_of_week' not in data:
+                data['day_of_week'] = data.pop('weekday')
+        
+        serializer = self.get_serializer(data=data, many=many)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Business hours created successfully',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def update(self, request, *args, **kwargs):
+        """Update business hours"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Business hours updated successfully',
+                'data': serializer.data
+            })
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Delete business hours"""
+        instance = self.get_object()
+        instance.delete()
+        return Response({
+            'success': True,
+            'message': 'Business hours deleted successfully'
+        }, status=status.HTTP_204_NO_CONTENT)
+
+
 class SLAViewSet(viewsets.ModelViewSet):
     queryset = SLA.objects.all()
     serializer_class = SLASerializer
@@ -139,4 +209,68 @@ class SLAViewSet(viewsets.ModelViewSet):
             return Response({
                 "message": "Error retrieving business hours",
                 "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['patch'])
+    def update_name(self, request, pk=None):
+        """Update only the name of an SLA policy"""
+        sla = self.get_object()
+        new_name = request.data.get('name')
+        
+        if not new_name:
+            return Response({
+                'success': False,
+                'message': 'Name is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        sla.name = new_name
+        sla.save()
+        
+        return Response({
+            'success': True,
+            'message': 'SLA name updated successfully',
+            'data': {'id': sla.id, 'name': sla.name}
+        })
+
+    @action(detail=True, methods=['patch'])
+    def update_target(self, request, pk=None):
+        """Update a specific SLA target's resolution time"""
+        try:
+            target_id = request.data.get('target_id')
+            resolution_time = request.data.get('resolution_time')
+            resolution_unit = request.data.get('resolution_unit')
+            
+            if not target_id:
+                return Response({
+                    'success': False,
+                    'message': 'Target ID is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            target = SLATarget.objects.get(id=target_id, sla_id=pk)
+            
+            if resolution_time is not None:
+                target.resolution_time = resolution_time
+            if resolution_unit:
+                target.resolution_unit = resolution_unit
+            
+            target.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Target updated successfully',
+                'data': {
+                    'id': target.id,
+                    'resolution_time': target.resolution_time,
+                    'resolution_unit': target.resolution_unit
+                }
+            })
+        except SLATarget.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Target not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

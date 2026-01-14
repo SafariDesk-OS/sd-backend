@@ -378,13 +378,9 @@ class Ticket(BaseEntity):
         from tenant.models import BusinessHoursx
 
         try:
-            # Filter business hours by the ticket's associated business
-            # This assumes BusinessHoursx is linked to a business via BaseEntity
-            if not self.business:
-                return None # No business associated with ticket, cannot get business hours
-
             hours_config = {}
-            business_hours = BusinessHoursx.objects.filter(business=self.business)
+            # Get all business hours - they are shared across all businesses
+            business_hours = BusinessHoursx.objects.all()
 
             for hour in business_hours:
                 hours_config[hour.day_of_week] = {
@@ -393,7 +389,7 @@ class Ticket(BaseEntity):
                     'is_working_day': hour.is_working_day
                 }
 
-            return hours_config
+            return hours_config if hours_config else None
         except Exception as e:
             print(f"Error getting business hours config: {e}")
             return None
