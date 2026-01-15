@@ -84,14 +84,17 @@ class BusinessSetup:
                 escalation_enabled=False
             )
 
-        # Create Business Hours (Monday to Friday, 8 AM - 5 PM)
-        for day_of_week in range(5):
+        # Create Business Hours (Monday to Sunday)
+        # Mon-Fri: Open (8-5)
+        # Sat-Sun: Closed (Default)
+        for day_of_week in range(7):
+            is_weekend = day_of_week >= 5
             hours_data = {
                 "name": f"{BusinessHoursx.DAYS_OF_WEEK[day_of_week][1]}",
                 "day_of_week": day_of_week,
                 "start_time": time(8, 0),
                 "end_time": time(17, 0),
-                "is_working_day": True,
+                "is_working_day": not is_weekend,
             }
             BusinessHoursx.objects.create(**hours_data)
 
